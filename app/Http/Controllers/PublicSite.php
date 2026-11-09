@@ -10,7 +10,7 @@ use Inertia\Inertia;
 
 class PublicSite
 {
-    public function show(string $locale, ?string $page = null)
+    public function show(Request $request, string $locale, ?string $page = null)
     {
         $page ??= 'home';
         $settings = Site::settings();
@@ -25,6 +25,7 @@ class PublicSite
         return Inertia::render('Public', [
             'locale' => $locale,
             'page' => $page,
+            'developmentTopic' => $page === 'contribute' && $request->query('topic') === 'projects',
             'locales' => $locales,
             'content' => $content,
             'logo' => Site::logo($settings),

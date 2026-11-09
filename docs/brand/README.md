@@ -25,3 +25,9 @@
 - رمزا Android وGitHub من [Simple Icons](https://github.com/simple-icons/simple-icons) بترخيص CC0. يظل استخدام الشعارين خاضعًا لإرشادات علامتيهما التجاريتين.
 - خطا Noto Sans Arabic وNoto Kufi Arabic بترخيص SIL Open Font License 1.1. راجع إشعارات الخطوط المرفقة.
 - تُستخدم أصول ختم إرثي بوصفها هوية المبادرة. ترخيص الكود في جذر المستودع.
+
+## المشهد المعتمد للصفحة الرئيسية
+
+الأصول `scene.webp` و`scene-medium.webp` و`scene-mobile.webp` مشتقة من مرجع المالك `IMG-20261109-WA0005.jpg`. احتفظنا بتكوين المبنى والمصحف والشاهد والصخور والفوانيس. أزلنا عناصر الواجهة المدمجة من المشهد، وأعدنا تنفيذها كعناصر HTML. حُذف نقش الشاهد المدمج وأُضيف نص [الرحمن 55:26](https://quran.com/55/26) بخط Noto Naskh Arabic. بقي رسم صفحات المصحف كما ورد في المرجع. أُعيد توزيع النص والأزرار وشريط المجالات على الشاشات الضيقة.
+
+أيقونتا التطوير والمكتبة من Fluent UI System Icons Color. أيقونة الترجمة تلوين لمسار Fluent UI System Icons Translate Filled. خط Noto Naskh Arabic بترخيص SIL Open Font License 1.1 المرفق.

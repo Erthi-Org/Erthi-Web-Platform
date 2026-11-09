@@ -1,9 +1,10 @@
 import { Head, useForm } from '@inertiajs/react';
 import { useState, type FormEvent } from 'react';
+import { developmentHref, HomeScene } from './HomeScene';
 import { Brand, Field, Notice, icon, pageHref, useDirection, type Copy, type Locale } from '../shared';
 
 type Project = {title: string; summary: string; repository: string; icon: string};
-type PublicProps = {locale: Locale; locales: Locale[]; page: string; content: Copy; projects: Project[]; logo: string | null; seo: {title: string}; notice?: string};
+type PublicProps = {locale: Locale; locales: Locale[]; page: string; content: Copy; projects: Project[]; logo: string | null; seo: {title: string}; notice?: string; developmentTopic?: boolean};
 const nav = ['home', 'about', 'dream', 'projects', 'contribute', 'contact'];
 
 function Arrow() {
@@ -17,7 +18,7 @@ function Header({ locale, locales, page, content, logo }: PublicProps) {
     const ar = locale === 'ar';
     const alternate = ar ? 'en' : 'ar';
 
-    return <header className="site-header">
+    return <header className={page === 'home' ? 'site-header cinematic-header' : 'site-header'}>
         <div className="shell header-row">
             <Brand locale={locale} logo={logo} />
             <button className="menu-toggle" type="button" aria-expanded={open} aria-controls="main-nav" onClick={() => setOpen(!open)}>
@@ -28,7 +29,7 @@ function Header({ locale, locales, page, content, logo }: PublicProps) {
             </button>
             <nav id="main-nav" className={open ? 'main-nav is-open' : 'main-nav'} aria-label={ar ? 'التنقل الرئيسي' : 'Main navigation'}>
                 {nav.map(key => <a key={key} href={pageHref(locale, key)} aria-current={page === key ? 'page' : undefined}>
-                    {key === 'home' ? (ar ? 'الرئيسية' : 'Home') : content[key].title}
+                    {key === 'home' ? (ar ? 'الرئيسية' : 'Home') : key === 'contribute' ? (ar ? 'شاركنا اقتراحك' : 'Get involved') : content[key].title}
                 </a>)}
             </nav>
             {locales.includes(alternate) && <a className="language" href={pageHref(alternate, page)} hrefLang={alternate} lang={alternate}>
@@ -74,15 +75,15 @@ const contribution = {
     projects: ['التطوير', 'Development'],
 };
 
-function Submission({ locale, page, notice }: {locale: Locale; page: string; notice?: string}) {
+function Submission({ locale, page, notice, developmentTopic }: {locale: Locale; page: string; notice?: string; developmentTopic?: boolean}) {
     const ar = locale === 'ar';
-    const form = useForm({ name: '', email: '', message: '', topic: '', consent: false, website: '' });
+    const form = useForm({ name: '', email: '', message: '', topic: developmentTopic ? 'projects' : '', consent: false, website: '' });
     const submit = (event: FormEvent) => {
         event.preventDefault();
         form.post(pageHref(locale, page), { preserveScroll: true, onSuccess: () => form.reset() });
     };
 
-    return <form className="panel submission form-stack" onSubmit={submit}>
+    return <form id="contribution-form" className="panel submission form-stack" onSubmit={submit}>
         <Notice>{notice}</Notice>
         <div className="form-grid">
             <Field label={ar ? 'الاسم' : 'Name'} error={form.errors.name}><input required maxLength={120} autoComplete="name" value={form.data.name} onChange={e => form.setData('name', e.target.value)} /></Field>
@@ -111,7 +112,7 @@ const pillars = [
 ];
 
 export default function Public(props: PublicProps) {
-    const { locale, page, content, projects, logo, notice } = props;
+    const { locale, page, content, projects, notice, developmentTopic } = props;
     const ar = locale === 'ar';
     useDirection(locale);
 
@@ -121,35 +122,17 @@ export default function Public(props: PublicProps) {
         <Header {...props} />
         <main id="main">
             {page === 'home' ? <>
-                <section className="hero">
-                    <div className="shell hero-grid">
-                        <div className="hero-copy">
-                            <p className="eyebrow"><i />{ar ? 'مبادرة إرثي  ·  مشاريع مفتوحة المصدر' : 'ERTHI INITIATIVE · OPEN SOURCE'}</p>
-                            <h1>{content.home.title}</h1>
-                            <p className="hero-description">{content.home.body}</p>
-                            <div className="actions">
-                                <a className="button primary" href={pageHref(locale, 'projects')}>{ar ? 'استكشف مشاريع الأثر' : 'Explore impact projects'} <Arrow /></a>
-                                <a className="button outline" href={pageHref(locale, 'contribute')}>{content.contribute.title}</a>
-                            </div>
-                        </div>
-                        <div className="seal-stage">
-                            <picture>
-                                {!logo && <source media="(max-width: 640px)" srcSet="/brand/seal-mobile.webp" />}
-                                <img className="hero-seal" src={logo ?? '/brand/seal-dark.webp'} width="960" height="960" alt={ar ? 'شعار إرثي الرسمي، ختم ذهبي يضم كتابًا مفتوحًا وعمارة إسلامية' : 'Official Erthi seal, a gold medallion with an open book and Islamic architecture'} fetchPriority="high" />
-                            </picture>
-                        </div>
-                    </div>
-                </section>
+                <HomeScene locale={locale} title={content.home.title} description={content.home.body} />
                 <section className="section shell">
                     <div className="section-heading"><div><p className="eyebrow"><i />{ar ? 'ما نعمل عليه' : 'WHAT WE BUILD'}</p><h2>{content.projects.title}</h2><p>{content.projects.body}</p></div><a className="text-link" href={pageHref(locale, 'projects')}>{ar ? 'كل المشاريع' : 'All projects'} <Arrow /></a></div>
                     <Projects locale={locale} projects={projects} />
                 </section>
                 <section className="section shell callout">
-                    <div>{icon('volunteer', 44)}<h2>{content.contribute.title}</h2><p>{content.contribute.body}</p></div>
-                    <a className="button outline" href={pageHref(locale, 'contribute')}>{ar ? 'تعرّف على مجالات التطوع' : 'Explore volunteer roles'} <Arrow /></a>
+                    <div>{icon('development', 44)}<h2>{ar ? 'التطوير المفتوح' : 'Open development'}</h2><p>{content.contribute.body}</p></div>
+                    <a className="button outline" href={developmentHref(locale)}>{ar ? 'طوّر معنا' : 'Develop with us'} <Arrow /></a>
                 </section>
             </> : <section className="section shell inner">
-                <p className="eyebrow"><i />{ar ? 'مبادرة إرثي' : 'ERTHI INITIATIVE'}</p>
+                <p className="eyebrow">{page === 'contact' ? icon('mail', 23) : page === 'contribute' ? icon('development', 23) : <i />}{ar ? 'مبادرة إرثي' : 'ERTHI INITIATIVE'}</p>
                 <h1>{content[page].title}</h1><p className="lead">{content[page].body}</p>
                 {page === 'projects' && <Projects locale={locale} projects={projects} />}
                 {page === 'about' && <div className="pillars">{pillars.map(([name, titleAr, titleEn, bodyAr, bodyEn]) =>
@@ -157,7 +140,7 @@ export default function Public(props: PublicProps) {
                 )}</div>}
                 {page === 'dream' && <a className="button primary" href={pageHref(locale, 'projects')}>{content.projects.title}<Arrow /></a>}
                 {page === 'contribute' && <div className="topics">{Object.entries(contribution).map(([name, labels]) => <span key={name}>{icon(name, 25)} {labels[ar ? 0 : 1]}</span>)}</div>}
-                {(page === 'contact' || page === 'contribute') && <Submission locale={locale} page={page} notice={notice} />}
+                {(page === 'contact' || page === 'contribute') && <Submission locale={locale} page={page} notice={notice} developmentTopic={developmentTopic} />}
                 {page === 'privacy' && <a className="text-link" href="https://github.com/Erthi-Org/Erthi-Web-Platform/blob/main/LICENSE">{ar ? 'ترخيص مستودع الموقع' : 'Website repository license'} <Arrow /></a>}
             </section>}
         </main>

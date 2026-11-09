@@ -9,6 +9,11 @@
     <link rel="alternate icon" type="image/png" href="/brand/book-32.png">
     <link rel="apple-touch-icon" href="/brand/book-192.png">
     <link rel="manifest" href="/manifest.webmanifest">
+    @if (($page['props']['page'] ?? null) === 'home')
+        <link rel="preload" as="image" href="/brand/scene-mobile.webp" media="(max-width: 900px)" fetchpriority="high">
+        <link rel="preload" as="image" href="/brand/scene.webp" imagesrcset="/brand/scene-medium.webp 1152w, /brand/scene.webp 1536w" imagesizes="100vw" media="(width > 900px)" fetchpriority="high">
+    @endif
+
     @isset($page['props']['seo'])
         @php($seo = $page['props']['seo'])
         <meta name="description" content="{{ $seo['description'] }}">

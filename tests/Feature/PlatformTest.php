@@ -37,6 +37,18 @@ class PlatformTest extends TestCase
         $this->get('/fr')->assertNotFound();
     }
 
+    public function test_home_preloads_art_and_development_links_preselect_the_topic(): void
+    {
+        $this->get('/ar')->assertOk()->assertSee('/brand/scene-mobile.webp', false)
+            ->assertSee('/brand/scene-medium.webp 1152w', false);
+        foreach (['ar', 'en'] as $locale) {
+            $this->get('/'.$locale.'/contribute?topic=projects')->assertOk()
+                ->assertInertia(fn (Page $view) => $view->where('developmentTopic', true));
+            $this->get('/'.$locale.'/contribute?topic=other')->assertOk()
+                ->assertInertia(fn (Page $view) => $view->where('developmentTopic', false));
+        }
+    }
+
     public function test_public_forms_validate_consent_topic_and_honeypot(): void
     {
         $input = ['name' => 'Test Visitor', 'email' => 'test@example.com', 'message' => 'A test message for Erthi.'];
