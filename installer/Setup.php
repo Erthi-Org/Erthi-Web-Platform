@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Dotenv\Dotenv;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -97,38 +98,97 @@ final class ErthiSetup
             $contents .= $name.'='.(in_array($name, $quoted, true) ? self::envValue((string) $value) : $value).PHP_EOL;
         }
 
-        $permissions = umask(0077);
-        $stream = fopen($root.'/.env', 'xb');
-        umask($permissions);
-        if ($stream === false) {
-            throw new RuntimeException('تعذّر إنشاء إعدادات التطبيق. قد يكون التطبيق مثبتًا بالفعل.');
-        }
-        try {
-            if (fwrite($stream, $contents) !== strlen($contents)) {
-                throw new RuntimeException('تعذّر حفظ إعدادات التطبيق.');
-            }
-        } catch (Throwable $error) {
-            unlink($root.'/.env');
-            throw $error;
-        } finally {
-            fclose($stream);
+        if (is_file($root.'/.env')) {
+            throw new RuntimeException('التطبيق مثبّت بالفعل.');
         }
 
+        $temporaryName = '.env.install-'.bin2hex(random_bytes(16));
+        $temporaryPath = $root.'/'.$temporaryName;
+        $permissions = umask(0077);
         try {
+            $written = file_put_contents($temporaryPath, $contents, LOCK_EX);
+        } finally {
+            umask($permissions);
+        }
+
+        $stage = 'تهيئة Laravel';
+        $schema = null;
+        $schemaName = null;
+        $ownsNewTables = false;
+        try {
+            if ($written !== strlen($contents)) {
+                throw new RuntimeException('Could not write the temporary environment');
+            }
             require_once $root.'/vendor/autoload.php';
+            // Validate syntax before Laravel's environment loader can terminate the request.
+            Dotenv::parse($contents);
             $app = require $root.'/bootstrap/app.php';
+            $app->loadEnvironmentFrom($temporaryName);
             $kernel = $app->make(Kernel::class);
             $kernel->bootstrap();
+
+            $stage = 'التحقق من اتصال Laravel';
+            $connection = DB::connection();
+            $expected = array_filter([
+                'driver' => $db['DB_CONNECTION'] ?? null,
+                'host' => $db['DB_HOST'] ?? null,
+                'database' => $db['DB_DATABASE'] ?? null,
+                'username' => $db['DB_USERNAME'] ?? null,
+                'password' => $db['DB_PASSWORD'] ?? null,
+            ], static fn ($value) => $value !== null);
+            foreach ($expected as $key => $value) {
+                if ($connection->getConfig($key) !== $value) {
+                    throw new RuntimeException('The effective database configuration differs from the installer input');
+                }
+            }
+
+            $schema = $connection->getSchemaBuilder();
+            $schemaName = $connection->getDriverName() === 'sqlite' ? 'main' : $connection->getDatabaseName();
+            if ($schema->getTableListing($schemaName, false) !== []) {
+                throw new RuntimeException('The target database must be empty');
+            }
+            $ownsNewTables = true;
+
+            $stage = 'إنشاء جداول إرثي';
             if ($kernel->call('migrate', ['--force' => true]) !== 0) {
                 throw new LogicException('Migration failed');
             }
-            DB::table('users')->insert([
+            $stage = 'إنشاء حساب المالك';
+            $connection->table('users')->insert([
                 'name' => 'Erthi Owner', 'email' => $email, 'password' => Hash::make($password),
                 'role' => 'owner', 'created_at' => now(), 'updated_at' => now(),
             ]);
+
+            $stage = 'تفعيل الموقع';
+            // The web installer holds the installation lock across this operation.
+            if (file_exists($root.'/.env') || ! rename($temporaryPath, $root.'/.env')) {
+                throw new RuntimeException('Could not activate the installation');
+            }
         } catch (Throwable $error) {
-            unlink($root.'/.env');
-            throw new RuntimeException('تعذّر إعداد جداول إرثي أو حساب المالك. راجع إعدادات قاعدة البيانات وسجل PHP الخاص بالاستضافة.');
+            $cleanupFailed = false;
+            if ($ownsNewTables) {
+                try {
+                    $tables = ['media', 'submissions', 'site_settings', 'content_blocks', 'projects',
+                        'failed_jobs', 'job_batches', 'jobs', 'cache_locks', 'cache', 'sessions',
+                        'password_reset_tokens', 'users', 'migrations'];
+                    foreach (array_intersect($tables, $schema->getTableListing($schemaName, false)) as $table) {
+                        $schema->dropIfExists($table);
+                    }
+                } catch (Throwable $cleanup) {
+                    $cleanupFailed = true;
+                    error_log('Erthi setup rollback failed ['.$cleanup::class.']');
+                }
+            }
+
+            $driverCode = $error instanceof PDOException ? (int) ($error->errorInfo[1] ?? 0) : 0;
+            $code = $driverCode > 0 ? 'MySQL '.$driverCode : substr(strrchr('\\'.$error::class, '\\'), 1);
+            error_log('Erthi setup failed at '.$stage.' ['.$code.']');
+            throw new RuntimeException('تعذّر إكمال مرحلة '.$stage.' ('.$code.').'
+                .($cleanupFailed ? ' تعذّر تنظيف الجداول التي أنشأتها هذه المحاولة.' : ''));
+        } finally {
+            if (is_file($temporaryPath)) {
+                unlink($temporaryPath);
+            }
         }
     }
 }
