@@ -28,7 +28,11 @@ type AdminProps = {
     data: Record<string, number> | Record<string, Copy> | Page<Project> | Page<Message> | Page<Media> | Page<User> | [];
 };
 
-const sectionHref = (section: Section) => section === 'overview' ? '/admin' : `/admin/${section}`;
+const adminBase = () => document.querySelector<HTMLMetaElement>('meta[name="erthi-admin-base"]')?.content || '/admin';
+const adminHref = (suffix = '') => adminBase() + suffix;
+const accessHref = () => adminBase() === '/admin' ? '/login' : adminHref('/access');
+const exitHref = () => adminBase() === '/admin' ? '/logout' : adminHref('/exit');
+const sectionHref = (section: Section) => adminHref(section === 'overview' ? '' : `/${section}`);
 
 function Editor({ url, fields, initial, clear = false, submitLabel = 'حفظ التغييرات' }: {
     url: string; fields: Input[]; initial: Values; clear?: boolean; submitLabel?: string;
@@ -54,7 +58,7 @@ function Editor({ url, fields, initial, clear = false, submitLabel = 'حفظ ا�
                 </select> : type === 'textarea' ? <textarea rows={4} dir="auto" value={text} required={!optional} onChange={e => form.setData(name, e.target.value)} />
                 : type === 'file' ? <input type="file" accept="image/png,image/jpeg,image/webp" required onChange={e => form.setData(name, e.target.files?.[0] ?? null)} />
                 : <input type={type ?? 'text'} dir={type === 'email' ? 'ltr' : 'auto'} value={text} required={!optional}
-                    autoComplete={type === 'password' ? (url === '/login' ? 'current-password' : 'new-password') : type === 'email' ? 'email' : undefined}
+                    autoComplete={type === 'password' ? (url === accessHref() ? 'current-password' : 'new-password') : type === 'email' ? 'email' : undefined}
                     onChange={e => form.setData(name, e.target.value)} />}
             </Field>;
         })}
@@ -66,7 +70,7 @@ export function Login() {
     useDirection('ar');
     return <main className="login shell"><Head title="دخول الإدارة | إرثي" /><Brand locale="ar" /><section className="panel">
         {icon('security', 42)}<h1>دخول الإدارة</h1>
-        <Editor url="/login" initial={{email: '', password: ''}} submitLabel="تسجيل الدخول" fields={[
+        <Editor url={accessHref()} initial={{email: '', password: ''}} submitLabel="تسجيل الدخول" fields={[
             {name: 'email', label: 'البريد الإلكتروني', type: 'email'}, {name: 'password', label: 'كلمة المرور', type: 'password'},
         ]} />
     </section></main>;
@@ -91,10 +95,10 @@ const emptyProject = {title_ar: '', title_en: '', summary_ar: '', summary_en: ''
 
 function ProjectEditor({ page }: {page: Page<Project>}) {
     return <>
-        <details className="panel"><summary>إضافة مشروع</summary><Editor url="/admin/projects" fields={projectFields} initial={emptyProject} clear /></details>
+        <details className="panel"><summary>إضافة مشروع</summary><Editor url={adminHref('/projects')} fields={projectFields} initial={emptyProject} clear /></details>
         {page.data.map(({ id, published, ...project }) => <details className="panel" key={id}>
             <summary>{project.title_ar} <bdi>{project.repository}</bdi></summary>
-            <Editor url={`/admin/projects/${id}`} fields={projectFields} initial={{...project, published: Boolean(published)}} />
+            <Editor url={adminHref(`/projects/${id}`)} fields={projectFields} initial={{...project, published: Boolean(published)}} />
         </details>)}
         <Pager page={page} />
     </>;
@@ -110,7 +114,7 @@ function ContentEditor({ copy }: {copy: Record<string, Copy>}) {
                 {Object.entries(copy[locale]).map(([key, block]) => <option value={key} key={key}>{block.title}</option>)}
             </select></Field>
         </div>
-        <Editor key={`${locale}/${page}`} url="/admin/content" fields={[{name: 'title', label: 'العنوان'}, {name: 'body', label: 'النص', type: 'textarea'}]}
+        <Editor key={`${locale}/${page}`} url={adminHref('/content')} fields={[{name: 'title', label: 'العنوان'}, {name: 'body', label: 'النص', type: 'textarea'}]}
             initial={{locale, page, ...copy[locale][page]}} />
     </section>;
 }
@@ -120,7 +124,7 @@ function Inbox({ page, section }: {page: Page<Message>; section: 'contact' | 'co
     return <>
         {page.data.length === 0 && <p className="panel">لا توجد رسائل في هذا القسم حتى الآن.</p>}
         {page.data.map(item => {
-            const url = `/admin/submissions/${section}/${item.id}`;
+            const url = adminHref(`/submissions/${section}/${item.id}`);
             return <article key={item.id} className="panel message">
                 <h2>{item.name}</h2><p><a href={`mailto:${item.email}`}><bdi>{item.email}</bdi></a></p>
                 {item.topic && <p>{topics[item.topic]}</p>}<p className="message-body" dir="auto">{item.message}</p>
@@ -138,7 +142,7 @@ function Inbox({ page, section }: {page: Page<Message>; section: 'contact' | 'co
 function MediaEditor({ page }: {page: Page<Media>}) {
     return <>
         <section className="panel"><h2>رفع صورة</h2><p>JPG، PNG أو WebP حتى 4 ميغابايت.</p>
-            <Editor url="/admin/media" fields={[{name: 'name', label: 'اسم الصورة'}, {name: 'image', label: 'الملف', type: 'file'}]}
+            <Editor url={adminHref('/media')} fields={[{name: 'name', label: 'اسم الصورة'}, {name: 'image', label: 'الملف', type: 'file'}]}
                 initial={{name: '', image: null}} clear />
         </section>
         <div className="media-grid">{page.data.map(item => <figure className="panel" key={item.id}>
@@ -154,9 +158,9 @@ function Identity({ page, settings, logo }: {page: Page<Media>; settings: Record
     if (settings.logo_id && !choices.some(([id]) => id === settings.logo_id)) choices.push([settings.logo_id, 'الصورة الحالية']);
     return <section className="panel form-stack"><h2>شعار الموقع</h2>
         <img className="identity-preview" width="140" height="140" src={logo ?? '/brand/seal-dark.webp'} alt="الشعار الحالي" />
-        <Editor key={settings.logo_id ?? 'default'} url="/admin/settings/identity" fields={[{name: 'logo_id', label: 'الصورة المعتمدة', options: choices, optional: true}]}
+        <Editor key={settings.logo_id ?? 'default'} url={adminHref('/settings/identity')} fields={[{name: 'logo_id', label: 'الصورة المعتمدة', options: choices, optional: true}]}
             initial={{logo_id: settings.logo_id ?? ''}} />
-        <Link className="text-link" href="/admin/media">رفع صورة جديدة</Link>
+        <Link className="text-link" href={adminHref('/media')}>رفع صورة جديدة</Link>
         <Pager page={page} />
     </section>;
 }
@@ -164,10 +168,10 @@ function Identity({ page, settings, logo }: {page: Page<Media>; settings: Record
 const roles: [string, string][] = [['editor', 'محرّر'], ['viewer', 'موقوف عن الإدارة']];
 function Users({ page }: {page: Page<User>}) {
     return <>
-        <details className="panel"><summary>إنشاء حساب</summary><Editor url="/admin/users" clear initial={{name: '', email: '', password: '', role: 'editor'}}
+        <details className="panel"><summary>إنشاء حساب</summary><Editor url={adminHref('/users')} clear initial={{name: '', email: '', password: '', role: 'editor'}}
             fields={[{name: 'name', label: 'الاسم'}, {name: 'email', label: 'البريد الإلكتروني', type: 'email'}, {name: 'password', label: 'كلمة المرور (14 حرفًا على الأقل)', type: 'password'}, {name: 'role', label: 'الصلاحية', options: roles}]} /></details>
         {page.data.map(user => <article className="panel" key={user.id}><h2>{user.name}</h2><p><bdi>{user.email}</bdi></p>
-            {user.role === 'owner' ? <p>مالك</p> : <Editor url={`/admin/users/${user.id}`} fields={[{name: 'role', label: 'الصلاحية', options: roles}]} initial={{role: user.role}} />}
+            {user.role === 'owner' ? <p>مالك</p> : <Editor url={adminHref(`/users/${user.id}`)} fields={[{name: 'role', label: 'الصلاحية', options: roles}]} initial={{role: user.role}} />}
         </article>)}
         <Pager page={page} />
     </>;
@@ -186,10 +190,10 @@ function Workspace({ section, data, settings, logo }: AdminProps) {
         case 'identity': return <Identity page={data as Page<Media>} logo={logo} settings={settings} />;
         case 'users': return <Users page={data as Page<User>} />;
         case 'languages': return <section className="panel"><p>العربية هي اللغة الافتراضية للموقع.</p>
-            <Editor url="/admin/settings/languages" fields={[{name: 'english_enabled', label: 'إتاحة النسخة الإنجليزية', type: 'checkbox'}]} initial={{english_enabled: settings.english_enabled !== '0'}} />
+            <Editor url={adminHref('/settings/languages')} fields={[{name: 'english_enabled', label: 'إتاحة النسخة الإنجليزية', type: 'checkbox'}]} initial={{english_enabled: settings.english_enabled !== '0'}} />
         </section>;
         case 'seo': return <section className="panel"><h2>عنوان الموقع ووصفه</h2>
-            <Editor url="/admin/settings/seo" fields={[
+            <Editor url={adminHref('/settings/seo')} fields={[
                 {name: 'title_ar', label: 'اسم الموقع بالعربية'}, {name: 'title_en', label: 'اسم الموقع بالإنجليزية'},
                 {name: 'description_ar', label: 'الوصف بالعربية (160 حرفًا)', type: 'textarea'},
                 {name: 'description_en', label: 'الوصف بالإنجليزية (160 حرفًا)', type: 'textarea'},
@@ -209,7 +213,7 @@ export default function Admin(props: AdminProps) {
             <nav aria-label="إدارة الموقع">{(Object.keys(sections) as Section[]).filter(key => key !== 'users' || role === 'owner').map(key =>
                 <Link key={key} href={sectionHref(key)} aria-current={section === key ? 'page' : undefined}>{icon(key === 'overview' ? 'projects' : sections[key][1], 25)}{sections[key][0]}</Link>
             )}</nav>
-            <button type="button" className="button outline" onClick={() => router.post('/logout')}>تسجيل الخروج</button>
+            <button type="button" className="button outline" onClick={() => router.post(exitHref())}>تسجيل الخروج</button>
         </aside>
         <main className="admin-main">
             <p className="eyebrow"><i />إدارة إرثي</p>

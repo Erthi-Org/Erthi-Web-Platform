@@ -30,6 +30,8 @@ npm audit --audit-level=moderate
 
 ## النشر على cPanel
 
+للتثبيت الجديد من المتصفح راجع [دليل مثبت إرثي](INSTALL-AR.md). حزمة التثبيت تتضمن ملفات الواجهة واعتماديات الإنتاج ومفتاح تفعيل منفصلًا لكل حزمة.
+
 - خصّص لـ `erthi.org` مجلد تطبيق وقاعدة MySQL أو MariaDB ومستخدم قاعدة بيانات مستقلين. اضبط Document Root على مجلد `public/` في تطبيق إرثي.
 - أنشئ ملف بيئة خاصًا بإرثي واضبط `APP_ENV=production` و`APP_DEBUG=false` و`APP_URL=https://erthi.org` و`SESSION_SECURE_COOKIE=true`. اترك `SESSION_DOMAIN` بقيمته الافتراضية حتى يبقى الكوكي خاصًا بالمضيف.
 - نفّذ `composer install --no-dev --optimize-autoloader` و`npm ci` و`npm run build`، ثم `php artisan key:generate` **مرة واحدة فقط عند التثبيت الجديد** و`php artisan migrate --force` و`php artisan optimize`. احتفظ بالمفتاح عند التحديث.

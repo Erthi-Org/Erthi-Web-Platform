@@ -3,6 +3,9 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    @if (in_array($page['component'] ?? '', ['Admin', 'Login'], true))
+        <meta name="erthi-admin-base" content="/{{ config('erthi.admin_prefix') }}">
+    @endif
     <meta name="theme-color" content="#19110e">
     <meta name="robots" content="{{ ($page['props']['seo']['index'] ?? false) ? 'index, follow' : 'noindex, nofollow' }}">
     <link rel="icon" type="image/svg+xml" href="/brand/book.svg">

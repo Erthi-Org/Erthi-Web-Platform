@@ -23,7 +23,8 @@ class PlatformHeaders
             $response->headers->set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'nonce-{$nonce}'; style-src 'self'; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
         }
 
-        if ($request->is('admin', 'admin/*', 'login', 'logout')) {
+        $admin = config('erthi.admin_prefix');
+        if ($request->is($admin, $admin.'/*', 'login', 'logout')) {
             $response->headers->set('Cache-Control', 'no-store, private');
             $response->headers->set('X-Robots-Tag', 'noindex, nofollow');
         }

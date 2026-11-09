@@ -26,17 +26,20 @@ Route::get('/sitemap.xml', function () {
 });
 Route::get('/media/{id}', [AdminSite::class, 'image'])->whereNumber('id');
 
-Route::get('/login', fn () => Inertia::render('Login', ['locale' => 'ar']))->name('login');
-Route::post('/login', function (Request $request) {
+$admin = config('erthi.admin_prefix');
+$login = $admin === 'admin' ? '/login' : '/'.$admin.'/access';
+$logout = $admin === 'admin' ? '/logout' : '/'.$admin.'/exit';
+Route::get($login, fn () => Inertia::render('Login', ['locale' => 'ar']))->name('login');
+Route::post($login, function (Request $request) {
     $data = $request->validate(['email' => ['required', 'email', 'max:254'], 'password' => ['required', 'string', 'max:72']]);
     if (! Auth::attempt(['email' => strtolower($data['email']), 'password' => $data['password'], 'role' => ['owner', 'editor']])) {
         throw ValidationException::withMessages(['email' => 'بيانات الدخول غير صحيحة أو الحساب غير مخوّل.']);
     }
     $request->session()->regenerate();
 
-    return redirect('/admin');
+    return redirect('/'.config('erthi.admin_prefix'));
 })->middleware(['guest', 'throttle:6,1']);
-Route::post('/logout', function (Request $request) {
+Route::post($logout, function (Request $request) {
     Auth::logout();
     $request->session()->invalidate();
     $request->session()->regenerateToken();
@@ -44,7 +47,7 @@ Route::post('/logout', function (Request $request) {
     return redirect('/ar');
 })->middleware('auth');
 
-Route::prefix('admin')->middleware(['auth', 'can:manage-erthi', 'throttle:90,1'])->group(function (): void {
+Route::prefix($admin)->middleware(['auth', 'can:manage-erthi', 'throttle:90,1'])->group(function (): void {
     Route::get('/{section?}', [AdminSite::class, 'show'])->whereIn('section', AdminSite::Sections);
     Route::post('/projects/{id?}', [AdminSite::class, 'project'])->whereNumber('id');
     Route::post('/content', [AdminSite::class, 'content']);
