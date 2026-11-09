@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node /tmp/erthi-preview.mjs",
+    "dev": "vite",
     "build": "vite build",
     "check": "tsc --noEmit"
   },
