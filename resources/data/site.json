@@ -1,0 +1,20 @@
+{
+  "ar": {
+    "home":{"title":"علمٌ نافع، وأثرٌ باقٍ","body":"إرثي مبادرة تُطوّر مشاريع إسلامية وتعليمية مفتوحة المصدر، وتفتح باب المشاركة في بناء أدوات نافعة تدوم بإذن الله."},
+    "about":{"title":"عن إرثي","body":"رسالتنا تطوير أدوات رقمية تعين على التعلّم والانتفاع بالمحتوى الإسلامي. رؤيتنا أن تبقى هذه الأدوات متاحة للمجتمع، وأن يستطيع المهتمون مراجعتها وتطويرها والمساهمة في تحسينها."},
+    "dream":{"title":"حلمنا","body":"نطمح إلى أن يجد طالب العلم أدوات عربية ميسّرة للتعلّم والمراجعة، وأن يستطيع المتخصص والمطوّر التعاون على تحسينها وإتاحة مصدرها للآخرين."},
+    "projects":{"title":"مشاريع الأثر","body":"تعرّف على التطبيقات التي نعمل عليها، وتابع تقدّمها وشارك في تطويرها عبر GitHub."},
+    "contribute":{"title":"ساهم معنا","body":"نرحّب بالمساهمة في مراجعة النصوص القرآنية والمحتوى، والترجمة، والاختبارات، والتطوير."},
+    "contact":{"title":"تواصل معنا","body":"أرسل استفسارًا أو اقتراحًا لفريق إرثي عبر النموذج أدناه."},
+    "privacy":{"title":"الخصوصية والتراخيص","body":"نستخدم بيانات النماذج للردّ على رسالتك أو متابعة طلب التطوّع. يطّلع عليها أعضاء الفريق المخوّلون بذلك. تُستخدم ملفات تعريف الارتباط اللازمة للجلسات وحماية النماذج. يمكنك التواصل عبر admin@erthi.org لطلب الوصول إلى بياناتك أو تصحيحها أو حذفها. يخضع كود كل مشروع لترخيص المستودع الخاص به، وتخضع الأيقونات والخطوط لتراخيص مصادرها."}
+  },
+  "en": {
+    "home":{"title":"Beneficial knowledge, lasting impact","body":"Erthi develops open-source Islamic and educational projects and welcomes contributors to help build tools that serve the community over time."},
+    "about":{"title":"About Erthi","body":"Our mission is to build digital tools that help people learn and engage with Islamic content. Our vision is to make these tools accessible so that the community can review, develop and improve them together."},
+    "dream":{"title":"Our dream","body":"We want learners to find accessible Arabic tools for study and review, and specialists and developers to work together on improvements that others can build on."},
+    "projects":{"title":"Impact projects","body":"Explore the apps we are building, follow their development and contribute through GitHub."},
+    "contribute":{"title":"Contribute","body":"We welcome help with Qur’an and content review, translation, testing, and software development."},
+    "contact":{"title":"Contact us","body":"Send a question or suggestion to the Erthi team using the form below."},
+    "privacy":{"title":"Privacy and licenses","body":"We use form submissions to reply to your message or follow up on your volunteer application. Authorized team members can access submissions. Essential cookies support sessions and form protection. Contact admin@erthi.org to request access, correction or deletion of your data. Each project's code follows its own repository license. Third-party icons and fonts follow their respective licenses."}
+  }
+}
