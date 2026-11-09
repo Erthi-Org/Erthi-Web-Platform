@@ -40,7 +40,8 @@ type OwnerSessions = {available: boolean; items: {current: boolean; last_activit
 const ownerSections: readonly Section[] = ['users', 'security', 'sessions', 'audit', 'updates'];
 const sectionIcon = (section: Section, size = 24) => icon(`admin-${section}`, size);
 type AuditEvent = {at: string; actor: number; action: string; method: string; status: number};
-type UpdateStatus = {key: string; sequence: number; active_sequence: number; can_rollback: boolean; available: boolean};
+type ReleaseCheck = {status: 'available' | 'missing' | 'unavailable'; sequence: number; url?: string};
+type UpdateStatus = {release_check: ReleaseCheck | null; key: string; sequence: number; active_sequence: number; can_rollback: boolean; available: boolean};
 type AdminProps = {
     section: Section; settings: Record<string, string>; logo: string | null; role: string; notice?: string;
     data: Record<string, number> | Record<string, Copy> | Page<Project> | Page<Message> | Page<Media> | Page<User> | UpdateStatus | SecurityStatus | OwnerSessions | AuditEvent[] | [];
@@ -239,6 +240,25 @@ function Overview({ counts, owner }: { counts: Record<string, number>; owner: bo
     </>;
 }
 
+function ReleaseCheckPanel({ result }: {result: ReleaseCheck | null}) {
+    const form = useForm({});
+    const messages = {
+        available: 'الحزمة التالية متاحة. نزّلها وارفعها هنا للتحقق من توقيعها وتثبيتها.',
+        missing: 'الحزمة التالية غير منشورة على GitHub حاليًا.',
+        unavailable: 'تعذّر التحقق من GitHub. حاول مرة أخرى لاحقًا.',
+    };
+    return <div className="admin-rollback">
+        <h2>إصدارات GitHub</h2>
+        {result && <p role="status">{messages[result.status]}</p>}
+        <div className="actions">
+            <button type="button" className="button outline" disabled={form.processing} onClick={() => form.post(adminHref('/updates/check'), {preserveScroll: true})}>
+                {form.processing ? 'جارٍ التحقق…' : 'تحقّق من وجود تحديث'}
+            </button>
+            {result?.url && <a className="button primary" href={result.url}>تنزيل الحزمة رقم {result.sequence}</a>}
+        </div>
+    </div>;
+}
+
 function Workspace({ section, data, settings, logo, role }: AdminProps) {
     switch (section) {
         case 'overview': return <Overview counts={data as Record<string, number>} owner={role === 'owner'} />;
@@ -304,6 +324,7 @@ function Workspace({ section, data, settings, logo, role }: AdminProps) {
                             {name: 'password', label: 'كلمة مرور المالك الحالية', type: 'password'}]}
                         initial={update.key ? {bundle: null, password: ''} : {key: '', password: ''}} />
                 </>}
+                <ReleaseCheckPanel result={update.release_check} />
                 {update.can_rollback && <details className="admin-rollback">
                     <summary>استعادة ملفات الإصدار السابق</summary>
                     <p>استعادة ملفات آخر إصدار سابق. رقم الحزمة التالية يظل محفوظًا.</p>

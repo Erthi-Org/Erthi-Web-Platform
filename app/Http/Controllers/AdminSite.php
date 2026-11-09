@@ -44,7 +44,7 @@ class AdminSite
             ],
             'sessions' => $this->sessions($request),
             'audit' => app(AdminAudit::class)->latest(),
-            'updates' => $this->updateStatus(),
+            'updates' => $this->updateStatus($request),
             default => [],
         };
 
@@ -54,14 +54,16 @@ class AdminSite
         ]);
     }
 
-    private function updateStatus(): array
+    private function updateStatus(Request $request): array
     {
         $state = app(SiteUpdates::class)->status();
+        $release = $request->session()->get('release_check');
 
         return [
             'key' => $state['key'],
             'sequence' => $state['sequence'],
             'active_sequence' => $state['active_sequence'] ?? $state['sequence'],
+            'release_check' => ($release['sequence'] ?? null) === $state['sequence'] + 1 ? $release : null,
             'can_rollback' => isset($state['rollback']),
             'available' => extension_loaded('sodium') && class_exists(\ZipArchive::class),
         ];

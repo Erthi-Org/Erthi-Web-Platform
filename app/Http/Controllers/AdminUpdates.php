@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\ReleaseChannel;
 use App\Support\SiteUpdates;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -31,6 +32,15 @@ final class AdminUpdates
         }
 
         return back()->with('notice', $field === 'bundle' ? 'تم تثبيت تحديث الموقع.' : 'تم تسجيل مفتاح التوقيع.');
+    }
+
+    public function check(Request $request, SiteUpdates $updates, ReleaseChannel $channel): RedirectResponse
+    {
+        abort_unless($request->user()->role === 'owner', 403);
+        $sequence = $updates->status()['sequence'] + 1;
+
+        return redirect('/'.config('erthi.admin_prefix').'/updates')
+            ->with('release_check', $channel->check($sequence));
     }
 
     public function rollback(Request $request, SiteUpdates $updates): RedirectResponse
