@@ -16,6 +16,13 @@ const sections = {
     updates: ['تحديثات الموقع', 'download'],
 } as const;
 type Section = keyof typeof sections;
+const navigationGroups = [
+    ['نظرة عامة', ['overview']],
+    ['النشر', ['projects', 'content', 'languages', 'media']],
+    ['التواصل والصلاحيات', ['contribute', 'contact', 'users']],
+    ['إعدادات الموقع', ['identity', 'seo', 'updates']],
+] as const satisfies readonly (readonly [string, readonly Section[]])[];
+
 type Value = string | boolean | File | null;
 type Values = Record<string, Value>;
 type Input = {name: string; label: string; type?: string; options?: [string, string][]; optional?: boolean};
@@ -272,8 +279,13 @@ export default function Admin(props: AdminProps) {
                 <button type="button" className="button outline admin-menu-toggle" aria-controls="erthi-admin-nav" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>الأقسام</button>
             </div>
             <div id="erthi-admin-nav" className={menuOpen ? 'admin-nav-body is-open' : 'admin-nav-body'}>
-                <nav aria-label="إدارة الموقع">{(Object.keys(sections) as Section[]).filter(key => owner || (key !== 'users' && key !== 'updates')).map(key =>
-                    <Link key={key} href={sectionHref(key)} aria-current={section === key ? 'page' : undefined} onClick={() => setMenuOpen(false)}>{icon(sections[key][1], 22)}{sections[key][0]}</Link>
+                <nav aria-label="إدارة الموقع">{navigationGroups.map(([label, keys]) =>
+                    <div className="admin-nav-group" key={label}>
+                        <p>{label}</p>
+                        {keys.filter(key => owner || (key !== 'users' && key !== 'updates')).map(key =>
+                            <Link key={key} href={sectionHref(key)} aria-current={section === key ? 'page' : undefined} onClick={() => setMenuOpen(false)}>{icon(sections[key][1], 20)}{sections[key][0]}</Link>
+                        )}
+                    </div>
                 )}</nav>
                 <button type="button" className="button outline admin-exit" onClick={() => router.post(exitHref())}>تسجيل الخروج</button>
             </div>

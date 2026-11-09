@@ -97,22 +97,30 @@ input[type=checkbox] { accent-color: var(--gold); width: 18px; height: 18px; fle
 .check { display: flex; gap: 9px; align-items: center; }
 .error { color: #ffb1a1; }
 .notice { border: 1px solid #607e56; color: #c7e7b4; background: #20301d; border-radius: 5px; padding: 9px 13px; }
-.admin-layout { display: grid; grid-template-columns: 240px minmax(0,1fr); min-height: 100vh; background: #100c09; }
-.admin-nav { position: sticky; top: 0; align-self: start; height: 100dvh; overflow: auto; padding: 22px 14px; background: #19120e; border-inline-end: 1px solid var(--border); }
+.admin-layout { display: grid; grid-template-columns: 204px minmax(0,1fr); min-height: 100vh; --border: #26313d; --panel: #111823; --gold: #79d9ec; --metal: #53bbd1; --ivory: #f1f5f9; --muted: #b3bfce; background: #0c0e12; color: var(--ivory); }
+.admin-nav { position: sticky; top: 0; align-self: start; height: 100dvh; overflow: auto; padding: 16px 10px; background: #11161e; border-inline-end: 1px solid var(--border); }
 .admin-nav-top { padding: 0 8px 18px; border-bottom: 1px solid var(--border); }
 .admin-nav-body { display: grid; gap: 16px; padding-block-start: 16px; }
-.admin-nav nav { display: grid; gap: 4px; }
-.admin-nav nav a { display: flex; align-items: center; gap: 10px; min-height: 44px; border: 1px solid transparent; border-radius: 8px; padding-inline: 10px; font-size: .86rem; }
-.admin-nav nav a:hover, .admin-nav nav a[aria-current] { border-color: var(--border); background: #2d2016; color: var(--gold); }
+.admin-nav nav { display: grid; gap: 14px; }
+.admin-nav-group { display: grid; gap: 2px; }
+.admin-nav-group p { color: var(--muted); font-size: .72rem; font-weight: 700; padding-inline: 10px; margin-block-end: 3px; }
+.admin-nav nav a { display: flex; align-items: center; gap: 10px; min-height: 38px; border: 1px solid transparent; border-radius: 7px; padding-inline: 9px; font-size: .82rem; }
+.admin-nav nav a:hover, .admin-nav nav a[aria-current] { border-color: var(--border); background: #1b2937; color: var(--gold); }
 .admin-nav nav a[aria-current] { border-inline-start: 3px solid var(--metal); font-weight: 700; }
+.admin-layout .outline { background: #131e29; border-color: #3b5063; }
+.admin-layout .outline:hover { border-color: var(--metal); }
+.admin-layout .primary { color: #07161e; }
+.admin-layout :focus-visible { outline-color: var(--gold); }
+.admin-layout input:not([type=checkbox]), .admin-layout select, .admin-layout textarea { background: #0c121b; border-color: #37485a; }
+.admin-queue meter::-webkit-meter-bar { background: #202d3c; border-color: #344354; }
 .admin-exit { justify-self: start; }
 .admin-menu-toggle { display: none; }
-.admin-main { display: grid; min-width: 0; align-content: start; gap: 16px; padding: 0 clamp(16px, 3vw, 44px) 36px; }
-.admin-topbar { min-height: 58px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; border-bottom: 1px solid var(--border); font-size: .82rem; color: var(--muted); }
+.admin-main { display: grid; min-width: 0; align-content: start; gap: 14px; padding: 0 clamp(16px, 3vw, 44px) 36px; width: min(100%, 1120px); margin-inline: auto; }
+.admin-topbar { min-height: 50px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; border-bottom: 1px solid var(--border); font-size: .82rem; color: var(--muted); }
 .admin-role { display: inline-flex; align-items: center; gap: 7px; color: var(--gold); }
-.admin-heading { display: flex; flex-wrap: wrap; gap: 14px; align-items: end; justify-content: space-between; padding: 24px; border: 1px solid var(--border); border-radius: 16px; background: radial-gradient(ellipse at top right, #332216, #19120e 72%); }
-.admin-heading h1 { font-size: clamp(1.55rem, 3.2vw, 2.6rem); margin-block: 6px; }
-.admin-main .panel { background: #1c1510; border-radius: 12px; }
+.admin-heading { display: flex; flex-wrap: wrap; gap: 14px; align-items: end; justify-content: space-between; padding: 4px 0 16px; border-block-end: 1px solid var(--border); }
+.admin-heading h1 { font-size: clamp(1.45rem, 2.8vw, 2.2rem); margin-block: 6px; }
+.admin-main .panel { background: #111823; border-radius: 9px; padding: 16px; }
 .admin-main .panel h2 { font-size: 1.12rem; margin-bottom: 6px; }
 .admin-main .panel summary { cursor: pointer; color: var(--gold); font-weight: 650; }
 .admin-main .panel[open] summary { margin-bottom: 15px; }
@@ -167,7 +175,8 @@ input[type=checkbox] { accent-color: var(--gold); width: 18px; height: 18px; fle
     .admin-nav-body.is-open { display: grid; }
     .admin-nav nav { grid-template-columns: repeat(2,minmax(0,1fr)); }
     .admin-overview-grid { grid-template-columns: 1fr; }
-    .admin-heading { padding: 16px; }
+    .admin-heading { padding-block-end: 12px; }
+    .admin-nav nav a { min-height: 44px; }
 }
 @media(max-width: 640px) {
     .shell { width: calc(100% - 2rem); }
