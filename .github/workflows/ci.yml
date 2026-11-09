@@ -47,6 +47,12 @@ jobs:
       - run: cp .env.example .env && php artisan key:generate
       - name: Run feature suite on SQLite
         run: php artisan test
+      - name: Reproduce a shared host with COMPACT as the default row format
+        env:
+          MARIADB_CONTAINER: ${{ job.services.mariadb.id }}
+        run: |
+          docker exec "$MARIADB_CONTAINER" mariadb -uroot -pci-root-only \
+            -e "SET GLOBAL innodb_default_row_format = 'compact'"
       - name: Run feature suite on MariaDB
         run: php artisan test
         env:
