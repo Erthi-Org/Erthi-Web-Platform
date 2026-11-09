@@ -79,7 +79,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (! $auto || ! preg_match('/\A(?:[a-z0-9]{1,16}_)?\z/', $prefix)) {
                 throw new RuntimeException('التثبيت التلقائي يحتاج cPanel UAPI وبادئة حساب صالحة.');
             }
-            ErthiSetup::uapi('get_restrictions');
             $tag = bin2hex(random_bytes(4));
             $database = $prefix.'erthi'.$tag;
             $dbUser = $prefix.'eu'.$tag;
