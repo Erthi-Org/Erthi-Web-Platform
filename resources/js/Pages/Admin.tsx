@@ -169,11 +169,60 @@ function Users({ page }: {page: Page<User>}) {
     </>;
 }
 
-function Workspace({ section, data, settings, logo }: AdminProps) {
+const overviewCards = [
+    ['projects', 'المشاريع المسجّلة'],
+    ['contribute', 'طلبات تطوع بانتظار المراجعة'],
+    ['contact', 'رسائل بانتظار المراجعة'],
+    ['media', 'الصور المرفوعة'],
+] as const;
+
+const sectionDescriptions: Record<Section, string> = {
+    overview: 'تابع الطلبات والرسائل وانتقل مباشرة إلى أعمال إدارة الموقع.',
+    projects: 'أضف مشاريع الأثر وحدّث بياناتها وحالة ظهورها للزوار.',
+    content: 'حرّر عناوين الصفحات ونصوصها حسب اللغة.',
+    languages: 'تحكّم في إتاحة النسخة الإنجليزية للزوار.',
+    contribute: 'راجع طلبات التطوع الواردة إلى المبادرة.',
+    contact: 'اقرأ رسائل التواصل وتابع ما يحتاج إلى مراجعة.',
+    media: 'ارفع صور الموقع واستعرض الملفات المتاحة.',
+    identity: 'اختر الشعار الذي يظهر للزوار.',
+    seo: 'اضبط عناوين الموقع وأوصافه لمحركات البحث.',
+    users: 'أنشئ حسابات الإدارة وراجع صلاحياتها.',
+    updates: 'سجّل مفتاح التوقيع وثبّت حزم التحديث الموقّعة.',
+};
+
+function Overview({ counts, owner }: { counts: Record<string, number>; owner: boolean }) {
+    const inboxes = ['contribute', 'contact'] as const;
+    const pending = counts.contribute + counts.contact;
+    const shortcuts: Section[] = owner ? ['projects', 'content', 'users', 'updates'] : ['projects', 'content', 'identity', 'seo'];
+
+    return <>
+        <section className="admin-cards" aria-label="إحصاءات الموقع">
+            {overviewCards.map(([key, label]) => <Link className="panel admin-card" href={sectionHref(key)} key={key}>
+                {icon(sections[key][1], 28)}<span>{label}</span><strong>{counts[key]}</strong>
+            </Link>)}
+        </section>
+        <div className="admin-overview-grid">
+            <section className="panel admin-widget">
+                <h2>صندوق المتابعة</h2>
+                <p>{pending === 0 ? 'كل الرسائل والطلبات الواردة تمت مراجعتها.' : 'توزيع الرسائل والطلبات التي تنتظر المراجعة.'}</p>
+                {inboxes.map(key => <Link className="admin-queue" href={sectionHref(key)} key={key}>
+                    {icon(sections[key][1], 22)}<span>{sections[key][0]}</span><strong>{counts[key]}</strong>
+                    <meter aria-label={sections[key][0]} min={0} max={Math.max(1, pending)} value={counts[key]} />
+                </Link>)}
+            </section>
+            <section className="panel admin-widget">
+                <h2>وصول سريع</h2>
+                {shortcuts.map(key => <Link className="admin-shortcut" href={sectionHref(key)} key={key}>
+                    {icon(sections[key][1], 22)}<span>{sections[key][0]}</span><span aria-hidden="true">←</span>
+                </Link>)}
+            </section>
+        </div>
+    </>;
+}
+
+function Workspace({ section, data, settings, logo, role }: AdminProps) {
     switch (section) {
-        case 'overview': return <div className="admin-cards">{Object.entries(data as Record<string, number>).map(([key, count]) => <Link className="panel admin-card" href={sectionHref(key as Section)} key={key}>
-            {icon(sections[key as Section][1], 36)}<span>{sections[key as Section][0]}</span><strong>{count}</strong>
-        </Link>)}</div>;
+        case 'overview': return <Overview counts={data as Record<string, number>} owner={role === 'owner'} />;
         case 'projects': return <ProjectEditor page={data as Page<Project>} />;
         case 'content': return <ContentEditor copy={data as Record<string, Copy>} />;
         case 'contact':
@@ -211,18 +260,37 @@ function Workspace({ section, data, settings, logo }: AdminProps) {
 export default function Admin(props: AdminProps) {
     useDirection('ar');
     const { section, logo, role, notice } = props;
-    return <div className="admin-layout shell">
-        <Head title={sections[section][0] + " | إرثي"} />
+    const [menuOpen, setMenuOpen] = useState(false);
+    const owner = role === 'owner';
+    const title = section === 'overview' ? (owner ? 'مركز إدارة المالك' : 'مركز إدارة إرثي') : sections[section][0];
+
+    return <div className="admin-layout" dir="rtl">
+        <Head title={title + ' | إرثي'} />
         <aside className="admin-nav">
-            <Brand locale="ar" logo={logo} />
-            <nav aria-label="إدارة الموقع">{(Object.keys(sections) as Section[]).filter(key => (key !== 'users' && key !== 'updates') || role === 'owner').map(key =>
-                <Link key={key} href={sectionHref(key)} aria-current={section === key ? 'page' : undefined}>{icon(key === 'overview' ? 'projects' : sections[key][1], 25)}{sections[key][0]}</Link>
-            )}</nav>
-            <button type="button" className="button outline" onClick={() => router.post(exitHref())}>تسجيل الخروج</button>
+            <div className="admin-nav-top">
+                <Brand locale="ar" logo={logo} />
+                <button type="button" className="button outline admin-menu-toggle" aria-controls="erthi-admin-nav" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>الأقسام</button>
+            </div>
+            <div id="erthi-admin-nav" className={menuOpen ? 'admin-nav-body is-open' : 'admin-nav-body'}>
+                <nav aria-label="إدارة الموقع">{(Object.keys(sections) as Section[]).filter(key => owner || (key !== 'users' && key !== 'updates')).map(key =>
+                    <Link key={key} href={sectionHref(key)} aria-current={section === key ? 'page' : undefined} onClick={() => setMenuOpen(false)}>{icon(sections[key][1], 22)}{sections[key][0]}</Link>
+                )}</nav>
+                <button type="button" className="button outline admin-exit" onClick={() => router.post(exitHref())}>تسجيل الخروج</button>
+            </div>
         </aside>
         <main className="admin-main">
-            <p className="eyebrow"><i />إدارة إرثي</p>
-            <h1>{sections[section][0]}</h1>
+            <div className="admin-topbar">
+                <span>إدارة إرثي <span aria-hidden="true">/</span> {sections[section][0]}</span>
+                <span className="admin-role">{icon('security', 18)}{owner ? 'حساب المالك' : 'حساب المحرّر'}</span>
+            </div>
+            <header className="admin-heading">
+                <div>
+                    <p className="eyebrow"><i />لوحة إدارة إرثي</p>
+                    <h1>{title}</h1>
+                    <p>{sectionDescriptions[section]}</p>
+                </div>
+                <a className="button outline" href="/ar">عرض الموقع</a>
+            </header>
             <Notice>{notice}</Notice>
             <Workspace key={section} {...props} />
         </main>
