@@ -75,6 +75,9 @@ class PlatformTest extends TestCase
         $editor = User::factory()->create(['role' => 'editor']);
         $this->actingAs($editor)->get('/admin')->assertOk()->assertHeader('X-Robots-Tag', 'noindex, nofollow');
         $this->get('/admin/users')->assertForbidden();
+        $this->get('/admin/security')->assertForbidden();
+        $this->get('/admin/sessions')->assertForbidden();
+        $this->delete('/admin/sessions')->assertForbidden();
         $this->post('/admin/users')->assertForbidden();
         $owner = User::factory()->create(['role' => 'owner']);
         $this->actingAs($owner);
@@ -84,6 +87,30 @@ class PlatformTest extends TestCase
         $this->post('/admin/users/'.$owner->id, ['role' => 'viewer'])->assertNotFound();
         $this->post('/admin/users/'.$editor->id, ['role' => 'viewer'])->assertRedirect();
         $this->actingAs($editor->fresh())->get('/admin')->assertForbidden();
+    }
+
+    public function test_only_the_owner_can_view_and_revoke_their_other_sessions(): void
+    {
+        config(['session.driver' => 'database']);
+        $owner = User::factory()->create(['role' => 'owner']);
+        $editor = User::factory()->create(['role' => 'editor']);
+        $login = $this->post('/login', ['email' => $owner->email, 'password' => 'password'])->assertRedirect('/admin');
+        $cookie = config('session.cookie');
+        $this->withUnencryptedCookie($cookie, $login->getCookie($cookie, false)->getValue());
+        DB::table('sessions')->insert([
+            ['id' => 'other-owner-session', 'user_id' => $owner->id, 'payload' => '', 'last_activity' => now()->timestamp],
+            ['id' => 'editor-session', 'user_id' => $editor->id, 'payload' => '', 'last_activity' => now()->timestamp],
+        ]);
+
+        $response = $this->get('/admin/sessions')->assertOk()->assertDontSee('other-owner-session')
+            ->assertInertia(fn (Page $page) => $page->where('data.available', true)->has('data.items', 2)
+                ->missing('data.items.0.id'));
+        $revoked = $this->withUnencryptedCookie($cookie, $response->getCookie($cookie, false)->getValue())->from('/admin/sessions')
+            ->delete('/admin/sessions')->assertRedirect('/admin/sessions');
+        $this->assertDatabaseMissing('sessions', ['id' => 'other-owner-session']);
+        $this->assertDatabaseHas('sessions', ['id' => 'editor-session']);
+        $this->assertDatabaseHas('sessions', ['id' => $revoked->getCookie($cookie)->getValue(), 'user_id' => $owner->id]);
+        $this->assertAuthenticatedAs($owner);
     }
 
     public function test_admin_login_and_logout(): void

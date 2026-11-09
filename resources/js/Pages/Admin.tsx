@@ -3,23 +3,26 @@ import { useState, type FormEvent } from 'react';
 import { Brand, Field, Notice, icon, useDirection, type Copy } from '../shared';
 
 const sections = {
-    overview: ['نظرة عامة', 'projects'],
-    projects: ['المشاريع', 'projects'],
-    content: ['المحتوى', 'content'],
-    languages: ['اللغات', 'language'],
-    contribute: ['طلبات التطوع', 'volunteer'],
-    contact: ['التواصل', 'mail'],
-    media: ['الصور', 'image'],
-    identity: ['الهوية البصرية', 'settings'],
-    seo: ['محركات البحث', 'seo'],
-    users: ['المستخدمون والصلاحيات', 'users'],
-    updates: ['تحديثات الموقع', 'download'],
+    overview: 'نظرة عامة',
+    projects: 'المشاريع',
+    content: 'المحتوى',
+    languages: 'اللغات',
+    contribute: 'طلبات التطوع',
+    contact: 'التواصل',
+    media: 'الصور',
+    identity: 'الهوية البصرية',
+    seo: 'محركات البحث',
+    users: 'المستخدمون والصلاحيات',
+    security: 'أمان الإدارة',
+    sessions: 'جلسات المالك',
+    updates: 'تحديثات الموقع',
 } as const;
 type Section = keyof typeof sections;
 const navigationGroups = [
     ['نظرة عامة', ['overview']],
     ['النشر', ['projects', 'content', 'languages', 'media']],
     ['التواصل والصلاحيات', ['contribute', 'contact', 'users']],
+    ['الأمان', ['security', 'sessions']],
     ['إعدادات الموقع', ['identity', 'seo', 'updates']],
 ] as const satisfies readonly (readonly [string, readonly Section[]])[];
 
@@ -31,10 +34,14 @@ type Message = {id: number; name: string; email: string; topic: string | null; m
 type Media = {id: number; name: string};
 type User = {id: number; name: string; email: string; role: string};
 type Page<T> = {data: T[]; prev_page_url: string | null; next_page_url: string | null; current_page: number; last_page: number};
+type SecurityStatus = {secure_cookie: boolean; encrypted_session: boolean; database_sessions: boolean};
+type OwnerSessions = {available: boolean; items: {current: boolean; last_activity: number}[]};
+const ownerSections: readonly Section[] = ['users', 'security', 'sessions', 'updates'];
+const sectionIcon = (section: Section, size = 24) => icon(`admin-${section}`, size);
 type UpdateStatus = {key: string; sequence: number; available: boolean};
 type AdminProps = {
     section: Section; settings: Record<string, string>; logo: string | null; role: string; notice?: string;
-    data: Record<string, number> | Record<string, Copy> | Page<Project> | Page<Message> | Page<Media> | Page<User> | UpdateStatus | [];
+    data: Record<string, number> | Record<string, Copy> | Page<Project> | Page<Message> | Page<Media> | Page<User> | UpdateStatus | SecurityStatus | OwnerSessions | [];
 };
 
 const adminBase = () => document.querySelector<HTMLMetaElement>('meta[name="erthi-admin-base"]')?.content || '/admin';
@@ -194,18 +201,20 @@ const sectionDescriptions: Record<Section, string> = {
     identity: 'اختر الشعار الذي يظهر للزوار.',
     seo: 'اضبط عناوين الموقع وأوصافه لمحركات البحث.',
     users: 'أنشئ حسابات الإدارة وراجع صلاحياتها.',
+    security: 'راجع إعدادات الحماية الفعلية لجلسات إدارة إرثي.',
+    sessions: 'استعرض جلسات حساب المالك وأنهِ الجلسات الأخرى عند الحاجة.',
     updates: 'سجّل مفتاح التوقيع وثبّت حزم التحديث الموقّعة.',
 };
 
 function Overview({ counts, owner }: { counts: Record<string, number>; owner: boolean }) {
     const inboxes = ['contribute', 'contact'] as const;
     const pending = counts.contribute + counts.contact;
-    const shortcuts: Section[] = owner ? ['projects', 'content', 'users', 'updates'] : ['projects', 'content', 'identity', 'seo'];
+    const shortcuts: Section[] = owner ? ['projects', 'content', 'security', 'updates'] : ['projects', 'content', 'identity', 'seo'];
 
     return <>
         <section className="admin-cards" aria-label="إحصاءات الموقع">
             {overviewCards.map(([key, label]) => <Link className="panel admin-card" href={sectionHref(key)} key={key}>
-                {icon(sections[key][1], 28)}<span>{label}</span><strong>{counts[key]}</strong>
+                {sectionIcon(key, 28)}<span>{label}</span><strong>{counts[key]}</strong>
             </Link>)}
         </section>
         <div className="admin-overview-grid">
@@ -213,14 +222,14 @@ function Overview({ counts, owner }: { counts: Record<string, number>; owner: bo
                 <h2>صندوق المتابعة</h2>
                 <p>{pending === 0 ? 'كل الرسائل والطلبات الواردة تمت مراجعتها.' : 'توزيع الرسائل والطلبات التي تنتظر المراجعة.'}</p>
                 {inboxes.map(key => <Link className="admin-queue" href={sectionHref(key)} key={key}>
-                    {icon(sections[key][1], 22)}<span>{sections[key][0]}</span><strong>{counts[key]}</strong>
-                    <meter aria-label={sections[key][0]} min={0} max={Math.max(1, pending)} value={counts[key]} />
+                    {sectionIcon(key, 24)}<span>{sections[key]}</span><strong>{counts[key]}</strong>
+                    <meter aria-label={sections[key]} min={0} max={Math.max(1, pending)} value={counts[key]} />
                 </Link>)}
             </section>
             <section className="panel admin-widget">
                 <h2>وصول سريع</h2>
                 {shortcuts.map(key => <Link className="admin-shortcut" href={sectionHref(key)} key={key}>
-                    {icon(sections[key][1], 22)}<span>{sections[key][0]}</span><span aria-hidden="true">←</span>
+                    {sectionIcon(key, 24)}<span>{sections[key]}</span><span aria-hidden="true">←</span>
                 </Link>)}
             </section>
         </div>
@@ -236,6 +245,38 @@ function Workspace({ section, data, settings, logo, role }: AdminProps) {
         case 'contribute': return <Inbox page={data as Page<Message>} section={section} />;
         case 'media': return <MediaEditor page={data as Page<Media>} />;
         case 'identity': return <Identity page={data as Page<Media>} logo={logo} settings={settings} />;
+        case 'security': {
+            const status = data as SecurityStatus;
+            const checks = [
+                ['إرسال ملف الجلسة عبر HTTPS فقط', status.secure_cookie],
+                ['تشفير بيانات الجلسة', status.encrypted_session],
+                ['تخزين الجلسات في قاعدة البيانات', status.database_sessions],
+            ] as const;
+            return <section className="panel admin-widget">
+                <h2>إعدادات حماية الجلسات</h2>
+                {checks.map(([label, enabled]) => <div className="admin-security-row" key={label}>
+                    <span>{label}</span><strong>{enabled ? 'مفعّل' : 'غير مفعّل'}</strong>
+                </div>)}
+                <Link className="text-link" href={sectionHref('sessions')}>عرض جلسات المالك</Link>
+            </section>;
+        }
+        case 'sessions': {
+            const sessions = data as OwnerSessions;
+            const format = new Intl.DateTimeFormat('ar', {dateStyle: 'medium', timeStyle: 'short'});
+            return <section className="panel admin-widget">
+                <h2>آخر الجلسات النشطة</h2>
+                {!sessions.available ? <p>تظهر الجلسات عند تخزينها في قاعدة البيانات.</p> : <>
+                    {sessions.items.length === 0 && <p>لا توجد جلسات نشطة مسجّلة.</p>}
+                    {sessions.items.map((session, index) => <div className="admin-security-row" key={index}>
+                        <span>{session.current ? 'الجلسة الحالية' : 'جلسة أخرى'}</span>
+                        <time dateTime={new Date(session.last_activity * 1000).toISOString()}>{format.format(session.last_activity * 1000)}</time>
+                    </div>)}
+                    {sessions.items.some(session => !session.current) && <button type="button" className="button outline" onClick={() => {
+                        if (window.confirm('إنهاء جلسات حساب المالك الأخرى؟')) router.delete(sectionHref('sessions'));
+                    }}>إنهاء الجلسات الأخرى</button>}
+                </>}
+            </section>;
+        }
         case 'updates': {
             const update = data as UpdateStatus;
             return <section className="panel">
@@ -269,7 +310,7 @@ export default function Admin(props: AdminProps) {
     const { section, logo, role, notice } = props;
     const [menuOpen, setMenuOpen] = useState(false);
     const owner = role === 'owner';
-    const title = section === 'overview' ? (owner ? 'مركز إدارة المالك' : 'مركز إدارة إرثي') : sections[section][0];
+    const title = section === 'overview' ? (owner ? 'مركز إدارة المالك' : 'مركز إدارة إرثي') : sections[section];
 
     return <div className="admin-layout" dir="rtl">
         <Head title={title + ' | إرثي'} />
@@ -280,10 +321,10 @@ export default function Admin(props: AdminProps) {
             </div>
             <div id="erthi-admin-nav" className={menuOpen ? 'admin-nav-body is-open' : 'admin-nav-body'}>
                 <nav aria-label="إدارة الموقع">{navigationGroups.map(([label, keys]) =>
-                    <div className="admin-nav-group" key={label}>
+                    <div className="admin-nav-group" key={label} hidden={!owner && keys.every(key => ownerSections.includes(key))}>
                         <p>{label}</p>
-                        {keys.filter(key => owner || (key !== 'users' && key !== 'updates')).map(key =>
-                            <Link key={key} href={sectionHref(key)} aria-current={section === key ? 'page' : undefined} onClick={() => setMenuOpen(false)}>{icon(sections[key][1], 20)}{sections[key][0]}</Link>
+                        {keys.filter(key => owner || !ownerSections.includes(key)).map(key =>
+                            <Link key={key} href={sectionHref(key)} aria-current={section === key ? 'page' : undefined} onClick={() => setMenuOpen(false)}>{sectionIcon(key, 24)}{sections[key]}</Link>
                         )}
                     </div>
                 )}</nav>
@@ -292,8 +333,8 @@ export default function Admin(props: AdminProps) {
         </aside>
         <main className="admin-main">
             <div className="admin-topbar">
-                <span>إدارة إرثي <span aria-hidden="true">/</span> {sections[section][0]}</span>
-                <span className="admin-role">{icon('security', 18)}{owner ? 'حساب المالك' : 'حساب المحرّر'}</span>
+                <span>إدارة إرثي <span aria-hidden="true">/</span> {sections[section]}</span>
+                <span className="admin-role">{sectionIcon('security', 20)}{owner ? 'حساب المالك' : 'حساب المحرّر'}</span>
             </div>
             <header className="admin-heading">
                 <div>

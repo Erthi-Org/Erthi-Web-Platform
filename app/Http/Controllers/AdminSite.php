@@ -16,12 +16,14 @@ use Inertia\Inertia;
 
 class AdminSite
 {
-    public const Sections = ['overview', 'projects', 'content', 'languages', 'contribute', 'contact', 'media', 'identity', 'seo', 'users', 'updates'];
+    public const Sections = ['overview', 'projects', 'content', 'languages', 'contribute', 'contact', 'media', 'identity', 'seo', 'users', 'security', 'sessions', 'updates'];
+
+    public const OwnerSections = ['users', 'security', 'sessions', 'updates'];
 
     public function show(Request $request, string $section = 'overview')
     {
         $settings = Site::settings();
-        abort_if(in_array($section, ['users', 'updates'], true) && $request->user()->role !== 'owner', 403);
+        abort_if(in_array($section, self::OwnerSections, true) && $request->user()->role !== 'owner', 403);
         $data = match ($section) {
             'overview' => [
                 'projects' => DB::table('projects')->count(),
@@ -34,6 +36,12 @@ class AdminSite
             'contact', 'contribute' => $this->paginate('submissions', $section),
             'media', 'identity' => $this->paginate('media'),
             'users' => DB::table('users')->select('id', 'name', 'email', 'role')->latest('id')->paginate(20),
+            'security' => [
+                'secure_cookie' => (bool) config('session.secure'),
+                'encrypted_session' => (bool) config('session.encrypt'),
+                'database_sessions' => config('session.driver') === 'database',
+            ],
+            'sessions' => $this->sessions($request),
             'updates' => app(SiteUpdates::class)->status() + ['available' => extension_loaded('sodium') && class_exists(\ZipArchive::class)],
             default => [],
         };
@@ -42,6 +50,36 @@ class AdminSite
             'section' => $section, 'data' => $data, 'locale' => 'ar', 'settings' => $settings,
             'logo' => Site::logo($settings), 'role' => $request->user()->role,
         ]);
+    }
+
+    private function sessions(Request $request): array
+    {
+        $available = config('session.driver') === 'database';
+
+        return [
+            'available' => $available,
+            'items' => $available ? $this->ownerSessions($request)
+                ->where('last_activity', '>=', now()->subMinutes((int) config('session.lifetime'))->timestamp)
+                ->orderByDesc('last_activity')->limit(25)->get(['id', 'last_activity'])
+                ->map(fn ($session) => [
+                    'current' => hash_equals($request->session()->getId(), $session->id),
+                    'last_activity' => (int) $session->last_activity,
+                ])->all() : [],
+        ];
+    }
+
+    public function revokeOtherSessions(Request $request)
+    {
+        abort_unless($request->user()->role === 'owner' && config('session.driver') === 'database', 403);
+        $this->ownerSessions($request)->where('id', '!=', $request->session()->getId())->delete();
+
+        return $this->saved();
+    }
+
+    private function ownerSessions(Request $request)
+    {
+        return DB::connection(config('session.connection'))->table(config('session.table'))
+            ->where('user_id', $request->user()->getAuthIdentifier());
     }
 
     private function paginate(string $table, ?string $kind = null)

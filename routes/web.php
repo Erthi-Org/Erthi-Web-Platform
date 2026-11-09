@@ -50,6 +50,7 @@ Route::post($logout, function (Request $request) {
 
 Route::prefix($admin)->middleware(['auth', 'can:manage-erthi', 'throttle:90,1'])->group(function (): void {
     Route::get('/{section?}', [AdminSite::class, 'show'])->whereIn('section', AdminSite::Sections);
+    Route::delete('/sessions', [AdminSite::class, 'revokeOtherSessions']);
     Route::post('/updates', [AdminUpdates::class, 'store'])->middleware('throttle:5,1,erthi-updates');
     Route::post('/projects/{id?}', [AdminSite::class, 'project'])->whereNumber('id');
     Route::post('/content', [AdminSite::class, 'content']);
