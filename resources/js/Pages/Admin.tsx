@@ -68,16 +68,6 @@ function Editor({ url, fields, initial, clear = false, submitLabel = 'حفظ ا�
     </form>;
 }
 
-export function Login() {
-    useDirection('ar');
-    return <main className="login shell"><Head title="دخول الإدارة | إرثي" /><Brand locale="ar" /><section className="panel">
-        {icon('security', 42)}<h1>دخول الإدارة</h1>
-        <Editor url={accessHref()} initial={{email: '', password: ''}} submitLabel="تسجيل الدخول" fields={[
-            {name: 'email', label: 'البريد الإلكتروني', type: 'email'}, {name: 'password', label: 'كلمة المرور', type: 'password'},
-        ]} />
-    </section></main>;
-}
-
 function Pager<T>({ page }: {page: Page<T>}) {
     return page.last_page > 1 && <nav className="pagination" aria-label="صفحات السجل">
         {page.prev_page_url && <Link href={page.prev_page_url}>السابق</Link>}
