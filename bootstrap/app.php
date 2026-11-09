@@ -16,5 +16,5 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [HandleInertiaRequests::class, PlatformHeaders::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->dontFlash(['code', 'recovery_code', 'credential']);
     })->create();

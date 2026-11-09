@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    @if (in_array($page['component'] ?? '', ['Admin', 'Login'], true))
+    @if (in_array($page['component'] ?? '', ['Admin', 'Login', 'AuthenticationChallenge'], true))
         <meta name="erthi-admin-base" content="/{{ config('erthi.admin_prefix') }}">
     @endif
     <meta name="theme-color" content="#19110e">

@@ -1,5 +1,6 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState, type FormEvent } from 'react';
+import OwnerAuthentication, { type OwnerSecurity } from '../Components/OwnerAuthentication';
 import { Brand, Field, Notice, icon, useDirection, type Copy } from '../shared';
 
 const sections = {
@@ -16,6 +17,7 @@ const sections = {
     security: 'أمان الإدارة',
     sessions: 'جلسات المالك',
     audit: 'سجل التدقيق',
+    safescan: 'فحص الملفات',
     updates: 'تحديثات الموقع',
 } as const;
 type Section = keyof typeof sections;
@@ -23,7 +25,7 @@ const navigationGroups = [
     ['نظرة عامة', ['overview']],
     ['النشر', ['projects', 'content', 'languages', 'media']],
     ['التواصل والصلاحيات', ['contribute', 'contact', 'users']],
-    ['الأمان', ['security', 'sessions', 'audit']],
+    ['الأمان', ['security', 'sessions', 'audit', 'safescan']],
     ['إعدادات الموقع', ['identity', 'seo', 'updates']],
 ] as const satisfies readonly (readonly [string, readonly Section[]])[];
 
@@ -35,16 +37,17 @@ type Message = {id: number; name: string; email: string; topic: string | null; m
 type Media = {id: number; name: string};
 type User = {id: number; name: string; email: string; role: string};
 type Page<T> = {data: T[]; prev_page_url: string | null; next_page_url: string | null; current_page: number; last_page: number};
-type SecurityStatus = {secure_cookie: boolean; encrypted_session: boolean; database_sessions: boolean};
+type SecurityStatus = OwnerSecurity & {secure_cookie: boolean; encrypted_session: boolean; database_sessions: boolean};
 type OwnerSessions = {available: boolean; items: {current: boolean; last_activity: number}[]};
-const ownerSections: readonly Section[] = ['users', 'security', 'sessions', 'audit', 'updates'];
+const ownerSections: readonly Section[] = ['users', 'security', 'sessions', 'audit', 'safescan', 'updates'];
 const sectionIcon = (section: Section, size = 24) => icon(`admin-${section}`, size);
 type AuditEvent = {at: string; actor: number; action: string; method: string; status: number};
+type ScanStatus = {configured: boolean; result: 'clean' | 'detected' | 'unavailable' | null};
 type ReleaseCheck = {status: 'available' | 'missing' | 'unavailable'; sequence: number; url?: string};
 type UpdateStatus = {release_check: ReleaseCheck | null; key: string; sequence: number; active_sequence: number; can_rollback: boolean; available: boolean};
 type AdminProps = {
     section: Section; settings: Record<string, string>; logo: string | null; role: string; notice?: string;
-    data: Record<string, number> | Record<string, Copy> | Page<Project> | Page<Message> | Page<Media> | Page<User> | UpdateStatus | SecurityStatus | OwnerSessions | AuditEvent[] | [];
+    data: Record<string, number> | Record<string, Copy> | Page<Project> | Page<Message> | Page<Media> | Page<User> | UpdateStatus | SecurityStatus | OwnerSessions | AuditEvent[] | ScanStatus | [];
 };
 
 const adminBase = () => document.querySelector<HTMLMetaElement>('meta[name="erthi-admin-base"]')?.content || '/admin';
@@ -207,6 +210,7 @@ const sectionDescriptions: Record<Section, string> = {
     security: 'راجع إعدادات الحماية الفعلية لجلسات إدارة إرثي.',
     sessions: 'استعرض جلسات حساب المالك وأنهِ الجلسات الأخرى عند الحاجة.',
     audit: 'راجع طلبات التعديل الإدارية المسجّلة على الموقع.',
+    safescan: 'افحص ملفًا بمحرك ClamAV المحلي قبل استخدامه.',
     updates: 'سجّل مفتاح التوقيع وثبّت حزم التحديث الموقّعة.',
 };
 
@@ -275,13 +279,13 @@ function Workspace({ section, data, settings, logo, role }: AdminProps) {
                 ['تشفير بيانات الجلسة', status.encrypted_session],
                 ['تخزين الجلسات في قاعدة البيانات', status.database_sessions],
             ] as const;
-            return <section className="panel admin-widget">
+            return <> <section className="panel admin-widget">
                 <h2>إعدادات حماية الجلسات</h2>
                 {checks.map(([label, enabled]) => <div className="admin-security-row" key={label}>
                     <span>{label}</span><strong>{enabled ? 'مفعّل' : 'غير مفعّل'}</strong>
                 </div>)}
                 <Link className="text-link" href={sectionHref('sessions')}>عرض جلسات المالك</Link>
-            </section>;
+            </section><OwnerAuthentication security={status} base={adminBase()} /></>;
         }
         case 'sessions': {
             const sessions = data as OwnerSessions;
@@ -298,6 +302,22 @@ function Workspace({ section, data, settings, logo, role }: AdminProps) {
                         if (window.confirm('إنهاء جلسات حساب المالك الأخرى؟')) router.delete(sectionHref('sessions'));
                     }}>إنهاء الجلسات الأخرى</button>}
                 </>}
+            </section>;
+        }
+        case 'safescan': {
+            const scan = data as ScanStatus;
+            const results = {
+                clean: 'لم يرصد محرك الفحص تهديدًا في هذا الملف.',
+                detected: 'رصد محرك الفحص تهديدًا في الملف.',
+                unavailable: 'تعذّر إكمال الفحص. تحقق من إعداد ClamAV على الاستضافة.',
+            };
+            return <section className="panel admin-widget">
+                <h2>SafeScan</h2>
+                <p>الحد الأقصى 10 ميغابايت. يُرسل الملف المؤقت إلى المحرك المحلي ويُعرض الحكم فقط.</p>
+                {scan.result && <p role="status">{results[scan.result]}</p>}
+                {scan.configured ? <Editor url={adminHref('/safescan')} clear submitLabel="فحص الملف"
+                    fields={[{name: 'file', label: 'الملف', type: 'file'}]} initial={{file: null}} />
+                    : <p>يتطلب الفحص إعداد مقبس ClamAV المحلي على الاستضافة.</p>}
             </section>;
         }
         case 'audit': {

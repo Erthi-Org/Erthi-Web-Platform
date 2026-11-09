@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Support\AdminAudit;
+use App\Support\SafeScan;
 use App\Support\Site;
 use App\Support\SiteUpdates;
 use Illuminate\Http\Request;
@@ -17,9 +18,9 @@ use Inertia\Inertia;
 
 class AdminSite
 {
-    public const Sections = ['overview', 'projects', 'content', 'languages', 'contribute', 'contact', 'media', 'identity', 'seo', 'users', 'security', 'sessions', 'audit', 'updates'];
+    public const Sections = ['overview', 'projects', 'content', 'languages', 'contribute', 'contact', 'media', 'identity', 'seo', 'users', 'security', 'sessions', 'audit', 'safescan', 'updates'];
 
-    public const OwnerSections = ['users', 'security', 'sessions', 'audit', 'updates'];
+    public const OwnerSections = ['users', 'security', 'sessions', 'audit', 'safescan', 'updates'];
 
     public function show(Request $request, string $section = 'overview')
     {
@@ -38,12 +39,16 @@ class AdminSite
             'media', 'identity' => $this->paginate('media'),
             'users' => DB::table('users')->select('id', 'name', 'email', 'role')->latest('id')->paginate(20),
             'security' => [
+                'two_factor' => $request->user()->two_factor_confirmed_at ? 'enabled'
+                    : ($request->user()->two_factor_secret ? 'pending' : 'disabled'),
+                'passkeys' => $request->user()->passkeys()->orderBy('id')->get(['id', 'name']),
                 'secure_cookie' => (bool) config('session.secure'),
                 'encrypted_session' => (bool) config('session.encrypt'),
                 'database_sessions' => config('session.driver') === 'database',
             ],
             'sessions' => $this->sessions($request),
             'audit' => app(AdminAudit::class)->latest(),
+            'safescan' => ['configured' => filled(config('erthi.clamd_socket')), 'result' => $request->session()->get('scan_result')],
             'updates' => $this->updateStatus($request),
             default => [],
         };
@@ -52,6 +57,15 @@ class AdminSite
             'section' => $section, 'data' => $data, 'locale' => 'ar', 'settings' => $settings,
             'logo' => Site::logo($settings), 'role' => $request->user()->role,
         ]);
+    }
+
+    public function scan(Request $request, SafeScan $scanner)
+    {
+        abort_unless($request->user()->role === 'owner', 403);
+        $data = $request->validate(['file' => ['required', 'file', 'max:'.SafeScan::MaxKilobytes]]);
+
+        return redirect('/'.config('erthi.admin_prefix').'/safescan')
+            ->with('scan_result', $scanner->scan($data['file']->getPathname()));
     }
 
     private function updateStatus(Request $request): array

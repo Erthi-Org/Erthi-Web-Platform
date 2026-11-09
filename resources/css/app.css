@@ -158,6 +158,7 @@ input[type=checkbox] { accent-color: var(--gold); width: 18px; height: 18px; fle
 .erthi-auth-card input { min-height: 46px; border-radius: 10px; }
 .erthi-auth-error { color: #ffb1a1; border: 1px solid #995849; border-radius: 8px; padding: 8px 12px; }
 .erthi-password-toggle { justify-self: center; }
+.erthi-passkey-login { margin-block-start: 12px; }
 .erthi-auth-card .erthi-auth-submit { width: 100%; justify-content: center; min-height: 46px; }
 @media(max-width: 1000px) {
     .shell { width: min(100% - 3rem, 1200px); }

@@ -1,3 +1,4 @@
+import { Passkeys } from '@laravel/passkeys';
 import { Head, useForm } from '@inertiajs/react';
 import { useState, type FormEvent } from 'react';
 import { useDirection, type Locale } from '../shared';
@@ -5,6 +6,8 @@ import { useDirection, type Locale } from '../shared';
 export default function Login() {
     const [locale, setLocale] = useState<Locale>('ar');
     const [showPassword, setShowPassword] = useState(false);
+    const [passkeyBusy, setPasskeyBusy] = useState(false);
+    const [passkeyError, setPasskeyError] = useState(false);
     const form = useForm({ email: '', password: '' });
     const arabic = locale === 'ar';
     const t = (ar: string, en: string) => arabic ? ar : en;
@@ -19,6 +22,20 @@ export default function Login() {
             password: String(data.get('password') ?? ''),
         }));
         form.post(window.location.pathname);
+    }
+
+    async function signInWithPasskey() {
+        const base = document.querySelector<HTMLMetaElement>('meta[name="erthi-admin-base"]')?.content || '/admin';
+        setPasskeyError(false);
+        setPasskeyBusy(true);
+        try {
+            await Passkeys.verify({routes: {options: base + '/passkeys/login/options', submit: base + '/passkeys/login'}});
+            window.location.assign(base);
+        } catch {
+            setPasskeyError(true);
+        } finally {
+            setPasskeyBusy(false);
+        }
     }
 
     return <main className="erthi-auth" lang={locale} dir={arabic ? 'rtl' : 'ltr'}>
@@ -48,6 +65,10 @@ export default function Login() {
                     {form.processing ? t('جارٍ التحقق…', 'Signing in…') : t('تسجيل الدخول', 'Sign in')}
                 </button>
             </form>
+            {Passkeys.isSupported() && <button type="button" className="button outline erthi-auth-submit erthi-passkey-login" disabled={passkeyBusy || form.processing} onClick={() => void signInWithPasskey()}>
+                {t('الدخول بمفتاح مرور', 'Sign in with a passkey')}
+            </button>}
+            {passkeyError && <p className="erthi-auth-error" role="alert">{t('تعذّر الدخول بمفتاح المرور.', 'Passkey sign-in did not complete.')}</p>}
         </section>
     </main>;
 }

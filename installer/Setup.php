@@ -170,7 +170,7 @@ final class ErthiSetup
                 try {
                     $tables = ['media', 'submissions', 'site_settings', 'content_blocks', 'projects',
                         'failed_jobs', 'job_batches', 'jobs', 'cache_locks', 'cache', 'sessions',
-                        'password_reset_tokens', 'users', 'migrations'];
+                        'password_reset_tokens', 'passkeys', 'users', 'migrations'];
                     foreach (array_intersect($tables, $schema->getTableListing($schemaName, false)) as $table) {
                         $schema->dropIfExists($table);
                     }

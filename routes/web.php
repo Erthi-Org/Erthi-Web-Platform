@@ -5,11 +5,7 @@ use App\Http\Controllers\AdminUpdates;
 use App\Http\Controllers\PublicSite;
 use App\Http\Middleware\RecordAdminAudit;
 use App\Support\Site;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Validation\ValidationException;
-use Inertia\Inertia;
 
 Route::redirect('/', '/ar', 302);
 Route::get('/robots.txt', fn () => response(config('erthi.indexing')
@@ -29,28 +25,9 @@ Route::get('/sitemap.xml', function () {
 Route::get('/media/{id}', [AdminSite::class, 'image'])->whereNumber('id');
 
 $admin = config('erthi.admin_prefix');
-$login = $admin === 'admin' ? '/login' : '/'.$admin.'/access';
-$logout = $admin === 'admin' ? '/logout' : '/'.$admin.'/exit';
-Route::get($login, fn () => Inertia::render('Login', ['locale' => 'ar']))->name('login');
-Route::post($login, function (Request $request) {
-    $data = $request->validate(['email' => ['required', 'email', 'max:254'], 'password' => ['required', 'string', 'max:72']]);
-    if (! Auth::attempt(['email' => strtolower($data['email']), 'password' => $data['password'], 'role' => ['owner', 'editor']])) {
-        throw ValidationException::withMessages(['email' => 'بيانات الدخول غير صحيحة أو الحساب غير مخوّل.']);
-    }
-    $request->session()->regenerate();
-
-    return redirect('/'.config('erthi.admin_prefix'));
-})->middleware(['guest', 'throttle:6,1']);
-Route::post($logout, function (Request $request) {
-    Auth::logout();
-    $request->session()->invalidate();
-    $request->session()->regenerateToken();
-
-    return redirect('/ar');
-})->middleware('auth');
-
 Route::prefix($admin)->middleware(['auth', 'can:manage-erthi', 'throttle:90,1', RecordAdminAudit::class])->group(function (): void {
     Route::get('/{section?}', [AdminSite::class, 'show'])->whereIn('section', AdminSite::Sections);
+    Route::post('/safescan', [AdminSite::class, 'scan'])->middleware('throttle:5,1,erthi-safescan');
     Route::delete('/sessions', [AdminSite::class, 'revokeOtherSessions']);
     Route::post('/updates', [AdminUpdates::class, 'store'])->middleware('throttle:5,1,erthi-updates');
     Route::post('/updates/check', [AdminUpdates::class, 'check'])->middleware('throttle:5,1,erthi-release-check');
