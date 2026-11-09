@@ -33,7 +33,7 @@ $checks = [
 ];
 $ready = ! in_array(false, $checks, true);
 $auto = ErthiSetup::automaticAvailable();
-$account = $auto && function_exists('posix_getpwuid') ? (posix_getpwuid(posix_geteuid())['name'] ?? '') : '';
+$account = $auto ? ErthiSetup::account() : '';
 $error = $success = null;
 $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 $input = static fn (string $name): string => is_string($_POST[$name] ?? null) ? $_POST[$name] : '';
