@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminSite;
+use App\Http\Controllers\AdminUpdates;
 use App\Http\Controllers\PublicSite;
 use App\Support\Site;
 use Illuminate\Http\Request;
@@ -49,6 +50,7 @@ Route::post($logout, function (Request $request) {
 
 Route::prefix($admin)->middleware(['auth', 'can:manage-erthi', 'throttle:90,1'])->group(function (): void {
     Route::get('/{section?}', [AdminSite::class, 'show'])->whereIn('section', AdminSite::Sections);
+    Route::post('/updates', [AdminUpdates::class, 'store'])->middleware('throttle:5,1,erthi-updates');
     Route::post('/projects/{id?}', [AdminSite::class, 'project'])->whereNumber('id');
     Route::post('/content', [AdminSite::class, 'content']);
     Route::post('/settings/{section}', [AdminSite::class, 'settings'])->whereIn('section', ['languages', 'identity', 'seo']);

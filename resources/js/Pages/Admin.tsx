@@ -13,6 +13,7 @@ const sections = {
     identity: ['الهوية البصرية', 'settings'],
     seo: ['محركات البحث', 'seo'],
     users: ['المستخدمون والصلاحيات', 'users'],
+    updates: ['تحديثات الموقع', 'download'],
 } as const;
 type Section = keyof typeof sections;
 type Value = string | boolean | File | null;
@@ -23,9 +24,10 @@ type Message = {id: number; name: string; email: string; topic: string | null; m
 type Media = {id: number; name: string};
 type User = {id: number; name: string; email: string; role: string};
 type Page<T> = {data: T[]; prev_page_url: string | null; next_page_url: string | null; current_page: number; last_page: number};
+type UpdateStatus = {key: string; sequence: number; available: boolean};
 type AdminProps = {
     section: Section; settings: Record<string, string>; logo: string | null; role: string; notice?: string;
-    data: Record<string, number> | Record<string, Copy> | Page<Project> | Page<Message> | Page<Media> | Page<User> | [];
+    data: Record<string, number> | Record<string, Copy> | Page<Project> | Page<Message> | Page<Media> | Page<User> | UpdateStatus | [];
 };
 
 const adminBase = () => document.querySelector<HTMLMetaElement>('meta[name="erthi-admin-base"]')?.content || '/admin';
@@ -56,9 +58,9 @@ function Editor({ url, fields, initial, clear = false, submitLabel = 'حفظ ا�
                 {options ? <select value={text} required={!optional} onChange={e => form.setData(name, e.target.value)}>
                     {options.map(([id, title]) => <option value={id} key={id}>{title}</option>)}
                 </select> : type === 'textarea' ? <textarea rows={4} dir="auto" value={text} required={!optional} onChange={e => form.setData(name, e.target.value)} />
-                : type === 'file' ? <input type="file" accept="image/png,image/jpeg,image/webp" required onChange={e => form.setData(name, e.target.files?.[0] ?? null)} />
+                : type === 'file' ? <input type="file" accept={name === 'bundle' ? '.zip,application/zip' : 'image/png,image/jpeg,image/webp'} required onChange={e => form.setData(name, e.target.files?.[0] ?? null)} />
                 : <input type={type ?? 'text'} dir={type === 'email' ? 'ltr' : 'auto'} value={text} required={!optional}
-                    autoComplete={type === 'password' ? (url === accessHref() ? 'current-password' : 'new-password') : type === 'email' ? 'email' : undefined}
+                    autoComplete={type === 'password' ? ((url === accessHref() || url === adminHref('/updates')) ? 'current-password' : 'new-password') : type === 'email' ? 'email' : undefined}
                     onChange={e => form.setData(name, e.target.value)} />}
             </Field>;
         })}
@@ -188,6 +190,19 @@ function Workspace({ section, data, settings, logo }: AdminProps) {
         case 'contribute': return <Inbox page={data as Page<Message>} section={section} />;
         case 'media': return <MediaEditor page={data as Page<Media>} />;
         case 'identity': return <Identity page={data as Page<Media>} logo={logo} settings={settings} />;
+        case 'updates': {
+            const update = data as UpdateStatus;
+            return <section className="panel">
+                <p>آخر رقم تحديث مثبّت: {update.sequence}</p>
+                {!update.available ? <p>يلزم تفعيل امتدادي PHP ZIP وSodium على الاستضافة.</p> : <>
+                    <p>{update.key ? 'ارفع حزمة إرثي الموقّعة بصيغة ZIP.' : 'سجّل مفتاح التوقيع العام مرة واحدة. احتفظ بالمفتاح الخاص خارج الموقع.'}</p>
+                    <Editor key={update.key} url={adminHref('/updates')} clear submitLabel={update.key ? 'تثبيت التحديث' : 'تسجيل مفتاح التوقيع'}
+                        fields={[update.key ? {name: 'bundle', label: 'حزمة التحديث الموقّعة', type: 'file'} : {name: 'key', label: 'مفتاح التوقيع العام Base64'},
+                            {name: 'password', label: 'كلمة مرور المالك الحالية', type: 'password'}]}
+                        initial={update.key ? {bundle: null, password: ''} : {key: '', password: ''}} />
+                </>}
+            </section>;
+        }
         case 'users': return <Users page={data as Page<User>} />;
         case 'languages': return <section className="panel"><p>العربية هي اللغة الافتراضية للموقع.</p>
             <Editor url={adminHref('/settings/languages')} fields={[{name: 'english_enabled', label: 'إتاحة النسخة الإنجليزية', type: 'checkbox'}]} initial={{english_enabled: settings.english_enabled !== '0'}} />
@@ -210,7 +225,7 @@ export default function Admin(props: AdminProps) {
         <Head title={sections[section][0] + " | إرثي"} />
         <aside className="admin-nav">
             <Brand locale="ar" logo={logo} />
-            <nav aria-label="إدارة الموقع">{(Object.keys(sections) as Section[]).filter(key => key !== 'users' || role === 'owner').map(key =>
+            <nav aria-label="إدارة الموقع">{(Object.keys(sections) as Section[]).filter(key => (key !== 'users' && key !== 'updates') || role === 'owner').map(key =>
                 <Link key={key} href={sectionHref(key)} aria-current={section === key ? 'page' : undefined}>{icon(key === 'overview' ? 'projects' : sections[key][1], 25)}{sections[key][0]}</Link>
             )}</nav>
             <button type="button" className="button outline" onClick={() => router.post(exitHref())}>تسجيل الخروج</button>

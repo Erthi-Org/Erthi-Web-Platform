@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Support\Site;
+use App\Support\SiteUpdates;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -15,12 +16,12 @@ use Inertia\Inertia;
 
 class AdminSite
 {
-    public const Sections = ['overview', 'projects', 'content', 'languages', 'contribute', 'contact', 'media', 'identity', 'seo', 'users'];
+    public const Sections = ['overview', 'projects', 'content', 'languages', 'contribute', 'contact', 'media', 'identity', 'seo', 'users', 'updates'];
 
     public function show(Request $request, string $section = 'overview')
     {
         $settings = Site::settings();
-        abort_if($section === 'users' && $request->user()->role !== 'owner', 403);
+        abort_if(in_array($section, ['users', 'updates'], true) && $request->user()->role !== 'owner', 403);
         $data = match ($section) {
             'overview' => [
                 'projects' => DB::table('projects')->count(),
@@ -33,6 +34,7 @@ class AdminSite
             'contact', 'contribute' => $this->paginate('submissions', $section),
             'media', 'identity' => $this->paginate('media'),
             'users' => DB::table('users')->select('id', 'name', 'email', 'role')->latest('id')->paginate(20),
+            'updates' => app(SiteUpdates::class)->status() + ['available' => extension_loaded('sodium') && class_exists(\ZipArchive::class)],
             default => [],
         };
 
