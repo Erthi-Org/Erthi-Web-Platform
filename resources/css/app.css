@@ -223,3 +223,13 @@ input[type=checkbox] { accent-color: var(--gold); width: 18px; height: 18px; fle
     .scene-features a { font-size: .76rem; padding: 7px 2px; }
     .scene-feature-icon { width: 44px; height: 44px; }
 }
+
+@media (width > 900px) {
+    [dir=ltr] .cinematic-copy { top: 17.8%; }
+    [dir=ltr] .scene-kicker { font-size: clamp(.68rem, 1.04vw, 1.24rem); }
+    [dir=ltr] .cinematic-copy h1 { font-size: clamp(1.7rem, 2.76vw, 4rem); line-height: 1.16; }
+    [dir=ltr] .scene-description { font-size: clamp(.78rem, 1.16vw, 1.35rem); }
+    [dir=ltr] .scene-actions { margin-top: 1.25vw; }
+    [dir=ltr] .scene-actions .button { font-size: clamp(.74rem, 1.06vw, 1.28rem); gap: .45em; }
+    [dir=ltr] .scene-actions .icon, [dir=ltr] .scene-actions .arrow { width: 1.15em; height: 1.15em; }
+}
