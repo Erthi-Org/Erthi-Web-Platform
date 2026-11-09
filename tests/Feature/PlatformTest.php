@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Page;
 use Tests\TestCase;
@@ -111,6 +112,31 @@ class PlatformTest extends TestCase
         $this->assertDatabaseHas('sessions', ['id' => 'editor-session']);
         $this->assertDatabaseHas('sessions', ['id' => $revoked->getCookie($cookie)->getValue(), 'user_id' => $owner->id]);
         $this->assertAuthenticatedAs($owner);
+    }
+
+    public function test_admin_audit_is_owner_only_and_excludes_submitted_content(): void
+    {
+        $directory = sys_get_temp_dir().'/erthi-audit-'.bin2hex(random_bytes(8));
+        $this->app->useStoragePath($directory);
+
+        try {
+            $editor = User::factory()->create(['role' => 'editor']);
+            $this->actingAs($editor)->post('/admin/content', [
+                'locale' => 'ar', 'page' => 'home', 'title' => 'Private fixture', 'body' => 'Unlogged form content',
+            ])->assertRedirect()->assertSessionHasNoErrors();
+            $this->get('/admin/audit')->assertForbidden();
+
+            $owner = User::factory()->create(['role' => 'owner']);
+            $this->actingAs($owner)->get('/admin/audit')->assertOk()
+                ->assertDontSee('Unlogged form content')
+                ->assertInertia(fn (Page $page) => $page->has('data', 1)
+                    ->where('data.0.actor', $editor->id)
+                    ->where('data.0.action', 'AdminSite@content')
+                    ->where('data.0.method', 'POST')
+                    ->where('data.0.status', 302));
+        } finally {
+            File::deleteDirectory($directory);
+        }
     }
 
     public function test_admin_login_and_logout(): void

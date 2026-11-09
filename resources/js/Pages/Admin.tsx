@@ -15,6 +15,7 @@ const sections = {
     users: 'المستخدمون والصلاحيات',
     security: 'أمان الإدارة',
     sessions: 'جلسات المالك',
+    audit: 'سجل التدقيق',
     updates: 'تحديثات الموقع',
 } as const;
 type Section = keyof typeof sections;
@@ -22,7 +23,7 @@ const navigationGroups = [
     ['نظرة عامة', ['overview']],
     ['النشر', ['projects', 'content', 'languages', 'media']],
     ['التواصل والصلاحيات', ['contribute', 'contact', 'users']],
-    ['الأمان', ['security', 'sessions']],
+    ['الأمان', ['security', 'sessions', 'audit']],
     ['إعدادات الموقع', ['identity', 'seo', 'updates']],
 ] as const satisfies readonly (readonly [string, readonly Section[]])[];
 
@@ -36,12 +37,13 @@ type User = {id: number; name: string; email: string; role: string};
 type Page<T> = {data: T[]; prev_page_url: string | null; next_page_url: string | null; current_page: number; last_page: number};
 type SecurityStatus = {secure_cookie: boolean; encrypted_session: boolean; database_sessions: boolean};
 type OwnerSessions = {available: boolean; items: {current: boolean; last_activity: number}[]};
-const ownerSections: readonly Section[] = ['users', 'security', 'sessions', 'updates'];
+const ownerSections: readonly Section[] = ['users', 'security', 'sessions', 'audit', 'updates'];
 const sectionIcon = (section: Section, size = 24) => icon(`admin-${section}`, size);
-type UpdateStatus = {key: string; sequence: number; available: boolean};
+type AuditEvent = {at: string; actor: number; action: string; method: string; status: number};
+type UpdateStatus = {key: string; sequence: number; active_sequence: number; can_rollback: boolean; available: boolean};
 type AdminProps = {
     section: Section; settings: Record<string, string>; logo: string | null; role: string; notice?: string;
-    data: Record<string, number> | Record<string, Copy> | Page<Project> | Page<Message> | Page<Media> | Page<User> | UpdateStatus | SecurityStatus | OwnerSessions | [];
+    data: Record<string, number> | Record<string, Copy> | Page<Project> | Page<Message> | Page<Media> | Page<User> | UpdateStatus | SecurityStatus | OwnerSessions | AuditEvent[] | [];
 };
 
 const adminBase = () => document.querySelector<HTMLMetaElement>('meta[name="erthi-admin-base"]')?.content || '/admin';
@@ -74,7 +76,7 @@ function Editor({ url, fields, initial, clear = false, submitLabel = 'حفظ ا�
                 </select> : type === 'textarea' ? <textarea rows={4} dir="auto" value={text} required={!optional} onChange={e => form.setData(name, e.target.value)} />
                 : type === 'file' ? <input type="file" accept={name === 'bundle' ? '.zip,application/zip' : 'image/png,image/jpeg,image/webp'} required onChange={e => form.setData(name, e.target.files?.[0] ?? null)} />
                 : <input type={type ?? 'text'} dir={type === 'email' ? 'ltr' : 'auto'} value={text} required={!optional}
-                    autoComplete={type === 'password' ? ((url === accessHref() || url === adminHref('/updates')) ? 'current-password' : 'new-password') : type === 'email' ? 'email' : undefined}
+                    autoComplete={type === 'password' ? ((url === accessHref() || url.startsWith(adminHref('/updates'))) ? 'current-password' : 'new-password') : type === 'email' ? 'email' : undefined}
                     onChange={e => form.setData(name, e.target.value)} />}
             </Field>;
         })}
@@ -203,6 +205,7 @@ const sectionDescriptions: Record<Section, string> = {
     users: 'أنشئ حسابات الإدارة وراجع صلاحياتها.',
     security: 'راجع إعدادات الحماية الفعلية لجلسات إدارة إرثي.',
     sessions: 'استعرض جلسات حساب المالك وأنهِ الجلسات الأخرى عند الحاجة.',
+    audit: 'راجع طلبات التعديل الإدارية المسجّلة على الموقع.',
     updates: 'سجّل مفتاح التوقيع وثبّت حزم التحديث الموقّعة.',
 };
 
@@ -277,10 +280,23 @@ function Workspace({ section, data, settings, logo, role }: AdminProps) {
                 </>}
             </section>;
         }
+        case 'audit': {
+            const events = data as AuditEvent[];
+            const format = new Intl.DateTimeFormat('ar', {dateStyle: 'medium', timeStyle: 'short'});
+            return <section className="panel admin-widget">
+                <h2>آخر طلبات التعديل</h2>
+                <p>يُعرض معرّف الحساب والإجراء وحالة الاستجابة.</p>
+                {events.length === 0 && <p>لا توجد عمليات مسجّلة حتى الآن.</p>}
+                {events.map((event, index) => <div className="admin-security-row" key={index}>
+                    <span>حساب {event.actor} · <bdi>{event.method} {event.action} · HTTP {event.status}</bdi></span>
+                    <time dateTime={event.at}>{format.format(new Date(event.at))}</time>
+                </div>)}
+            </section>;
+        }
         case 'updates': {
             const update = data as UpdateStatus;
             return <section className="panel">
-                <p>آخر رقم تحديث مثبّت: {update.sequence}</p>
+                <p>الإصدار النشط: {update.active_sequence} · رقم الحزمة التالية: {update.sequence + 1}</p>
                 {!update.available ? <p>يلزم تفعيل امتدادي PHP ZIP وSodium على الاستضافة.</p> : <>
                     <p>{update.key ? 'ارفع حزمة إرثي الموقّعة بصيغة ZIP.' : 'سجّل مفتاح التوقيع العام مرة واحدة. احتفظ بالمفتاح الخاص خارج الموقع.'}</p>
                     <Editor key={update.key} url={adminHref('/updates')} clear submitLabel={update.key ? 'تثبيت التحديث' : 'تسجيل مفتاح التوقيع'}
@@ -288,6 +304,12 @@ function Workspace({ section, data, settings, logo, role }: AdminProps) {
                             {name: 'password', label: 'كلمة مرور المالك الحالية', type: 'password'}]}
                         initial={update.key ? {bundle: null, password: ''} : {key: '', password: ''}} />
                 </>}
+                {update.can_rollback && <details className="admin-rollback">
+                    <summary>استعادة ملفات الإصدار السابق</summary>
+                    <p>استعادة ملفات آخر إصدار سابق. رقم الحزمة التالية يظل محفوظًا.</p>
+                    <Editor url={adminHref('/updates/rollback')} clear submitLabel="استعادة الإصدار السابق"
+                        fields={[{name: 'password', label: 'كلمة مرور المالك الحالية', type: 'password'}]} initial={{password: ''}} />
+                </details>}
             </section>;
         }
         case 'users': return <Users page={data as Page<User>} />;

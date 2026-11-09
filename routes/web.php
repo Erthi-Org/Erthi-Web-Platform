@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdminSite;
 use App\Http\Controllers\AdminUpdates;
 use App\Http\Controllers\PublicSite;
+use App\Http\Middleware\RecordAdminAudit;
 use App\Support\Site;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -48,10 +49,11 @@ Route::post($logout, function (Request $request) {
     return redirect('/ar');
 })->middleware('auth');
 
-Route::prefix($admin)->middleware(['auth', 'can:manage-erthi', 'throttle:90,1'])->group(function (): void {
+Route::prefix($admin)->middleware(['auth', 'can:manage-erthi', 'throttle:90,1', RecordAdminAudit::class])->group(function (): void {
     Route::get('/{section?}', [AdminSite::class, 'show'])->whereIn('section', AdminSite::Sections);
     Route::delete('/sessions', [AdminSite::class, 'revokeOtherSessions']);
     Route::post('/updates', [AdminUpdates::class, 'store'])->middleware('throttle:5,1,erthi-updates');
+    Route::post('/updates/rollback', [AdminUpdates::class, 'rollback'])->middleware('throttle:5,1,erthi-updates');
     Route::post('/projects/{id?}', [AdminSite::class, 'project'])->whereNumber('id');
     Route::post('/content', [AdminSite::class, 'content']);
     Route::post('/settings/{section}', [AdminSite::class, 'settings'])->whereIn('section', ['languages', 'identity', 'seo']);

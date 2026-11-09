@@ -32,4 +32,18 @@ final class AdminUpdates
 
         return back()->with('notice', $field === 'bundle' ? 'تم تثبيت تحديث الموقع.' : 'تم تسجيل مفتاح التوقيع.');
     }
+
+    public function rollback(Request $request, SiteUpdates $updates): RedirectResponse
+    {
+        abort_unless($request->user()->role === 'owner', 403);
+        $request->validate(['password' => ['required', 'string', 'current_password']]);
+
+        try {
+            $updates->rollback();
+        } catch (RuntimeException $error) {
+            throw ValidationException::withMessages(['password' => $error->getMessage()]);
+        }
+
+        return back()->with('notice', 'تمت استعادة ملفات الإصدار السابق.');
+    }
 }

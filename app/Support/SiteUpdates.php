@@ -50,11 +50,46 @@ final class SiteUpdates
             }
             try {
                 [$sequence, $files] = $this->verifiedFiles($zip, $state);
-                $this->install($files, ['key' => $state['key'], 'sequence' => $sequence]);
+                $this->install($files, [
+                    'key' => $state['key'], 'sequence' => $sequence, 'active_sequence' => $sequence,
+                ], $state);
             } finally {
                 $zip->close();
             }
         });
+    }
+
+    public function rollback(): void
+    {
+        $this->locked(function (): void {
+            $state = $this->status();
+            $snapshot = $state['rollback'] ?? null;
+            if ($snapshot === null) {
+                throw new RuntimeException('لا توجد نسخة سابقة متاحة للاستعادة.');
+            }
+
+            $backup = $this->backupPath($snapshot['directory']);
+            $files = [];
+            foreach ($snapshot['files'] as $name => $existed) {
+                if (! self::allowed($name) || ($existed && ! is_file($backup.'/'.$name))) {
+                    throw new RuntimeException('النسخة الاحتياطية غير مكتملة.');
+                }
+                $files[$name] = $existed ? File::get($backup.'/'.$name) : null;
+            }
+
+            $this->install($files, [
+                'key' => $state['key'], 'sequence' => $state['sequence'], 'active_sequence' => $snapshot['sequence'],
+            ], $state, retainSnapshot: false);
+        });
+    }
+
+    private function backupPath(string $directory): string
+    {
+        if (! preg_match('/\Abackup-[0-9]+-[a-f0-9]{12}\z/', $directory)) {
+            throw new RuntimeException('مسار النسخة الاحتياطية غير صالح.');
+        }
+
+        return storage_path('app/private/site-updates/'.$directory);
     }
 
     private function verifiedFiles(ZipArchive $zip, array $state): array
@@ -111,13 +146,16 @@ final class SiteUpdates
         return preg_match('~\A(?:app|config|routes|resources/views|resources/data|lang)/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+(?:\.blade)?\.(?:php|json)\z~', $name) === 1;
     }
 
-    private function install(array $files, array $state): void
+    private function install(array $files, array $state, array $previous, bool $retainSnapshot = true): void
     {
-        $backup = storage_path('app/private/site-updates/backup-'.$state['sequence'].'-'.bin2hex(random_bytes(6)));
+        $directory = 'backup-'.$state['sequence'].'-'.bin2hex(random_bytes(6));
+        $backup = $this->backupPath($directory);
         $changed = [];
+        $existed = [];
         foreach ($files as $name => $bytes) {
             $target = $this->target($name);
-            if (file_exists($target)) {
+            $existed[$name] = is_file($target);
+            if ($existed[$name]) {
                 File::ensureDirectoryExists(dirname($backup.'/'.$name), 0700);
                 if (! copy($target, $backup.'/'.$name)) {
                     throw new RuntimeException('تعذّر أخذ نسخة احتياطية من الملفات.');
@@ -128,11 +166,29 @@ final class SiteUpdates
         try {
             foreach ($files as $name => $bytes) {
                 $target = $this->target($name);
-                File::ensureDirectoryExists(dirname($target));
-                $this->replace($target, $bytes);
+                if ($bytes === null) {
+                    if (! is_file($target)) {
+                        continue;
+                    }
+                    if (! unlink($target)) {
+                        throw new RuntimeException('تعذّر إزالة ملف أضافه التحديث.');
+                    }
+                    if (str_ends_with($target, '.php') && function_exists('opcache_invalidate')) {
+                        @opcache_invalidate($target, true);
+                    }
+                } else {
+                    File::ensureDirectoryExists(dirname($target));
+                    $this->replace($target, $bytes);
+                }
                 $changed[] = $name;
             }
             $this->clearCompiled();
+            if ($retainSnapshot) {
+                $state['rollback'] = [
+                    'directory' => $directory, 'files' => $existed,
+                    'sequence' => $previous['active_sequence'] ?? $previous['sequence'],
+                ];
+            }
             $this->writeState($state);
         } catch (Throwable $error) {
             try {
@@ -149,10 +205,17 @@ final class SiteUpdates
                 report($rollback);
                 throw new RuntimeException('تعذّر إكمال التراجع. النسخة الاحتياطية محفوظة في مجلد التحديثات الخاص.');
             }
+            File::deleteDirectory($backup);
             report($error);
-            throw new RuntimeException('تعذّر تطبيق التحديث وأُعيدت الملفات السابقة.');
+            throw new RuntimeException('تعذّر تعديل ملفات الموقع وأُعيدت الملفات السابقة.');
         }
-        File::deleteDirectory($backup);
+
+        if (! $retainSnapshot) {
+            File::deleteDirectory($backup);
+        }
+        if (isset($previous['rollback']['directory'])) {
+            File::deleteDirectory($this->backupPath($previous['rollback']['directory']));
+        }
     }
 
     private function target(string $name): string

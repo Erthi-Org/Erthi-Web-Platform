@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Support\AdminAudit;
 use App\Support\Site;
 use App\Support\SiteUpdates;
 use Illuminate\Http\Request;
@@ -16,9 +17,9 @@ use Inertia\Inertia;
 
 class AdminSite
 {
-    public const Sections = ['overview', 'projects', 'content', 'languages', 'contribute', 'contact', 'media', 'identity', 'seo', 'users', 'security', 'sessions', 'updates'];
+    public const Sections = ['overview', 'projects', 'content', 'languages', 'contribute', 'contact', 'media', 'identity', 'seo', 'users', 'security', 'sessions', 'audit', 'updates'];
 
-    public const OwnerSections = ['users', 'security', 'sessions', 'updates'];
+    public const OwnerSections = ['users', 'security', 'sessions', 'audit', 'updates'];
 
     public function show(Request $request, string $section = 'overview')
     {
@@ -42,7 +43,8 @@ class AdminSite
                 'database_sessions' => config('session.driver') === 'database',
             ],
             'sessions' => $this->sessions($request),
-            'updates' => app(SiteUpdates::class)->status() + ['available' => extension_loaded('sodium') && class_exists(\ZipArchive::class)],
+            'audit' => app(AdminAudit::class)->latest(),
+            'updates' => $this->updateStatus(),
             default => [],
         };
 
@@ -50,6 +52,19 @@ class AdminSite
             'section' => $section, 'data' => $data, 'locale' => 'ar', 'settings' => $settings,
             'logo' => Site::logo($settings), 'role' => $request->user()->role,
         ]);
+    }
+
+    private function updateStatus(): array
+    {
+        $state = app(SiteUpdates::class)->status();
+
+        return [
+            'key' => $state['key'],
+            'sequence' => $state['sequence'],
+            'active_sequence' => $state['active_sequence'] ?? $state['sequence'],
+            'can_rollback' => isset($state['rollback']),
+            'available' => extension_loaded('sodium') && class_exists(\ZipArchive::class),
+        ];
     }
 
     private function sessions(Request $request): array
