@@ -31,6 +31,7 @@ Route::prefix($admin)->middleware(['auth', 'can:manage-erthi', 'throttle:90,1', 
     Route::delete('/sessions', [AdminSite::class, 'revokeOtherSessions']);
     Route::post('/updates', [AdminUpdates::class, 'store'])->middleware('throttle:5,1,erthi-updates');
     Route::post('/updates/check', [AdminUpdates::class, 'check'])->middleware('throttle:5,1,erthi-release-check');
+    Route::post('/updates/install-release/{sequence}', [AdminUpdates::class, 'installRelease'])->whereNumber('sequence')->middleware('throttle:5,1,erthi-updates');
     Route::post('/updates/rollback', [AdminUpdates::class, 'rollback'])->middleware('throttle:5,1,erthi-updates');
     Route::post('/projects/{id?}', [AdminSite::class, 'project'])->whereNumber('id');
     Route::post('/content', [AdminSite::class, 'content']);

@@ -211,7 +211,7 @@ const sectionDescriptions: Record<Section, string> = {
     sessions: 'استعرض جلسات حساب المالك وأنهِ الجلسات الأخرى عند الحاجة.',
     audit: 'راجع طلبات التعديل الإدارية المسجّلة على الموقع.',
     safescan: 'افحص ملفًا بمحرك ClamAV المحلي قبل استخدامه.',
-    updates: 'سجّل مفتاح التوقيع وثبّت حزم التحديث الموقّعة.',
+    updates: 'تحقّق من إصدارات GitHub وثبّت التحديث الموقّع من لوحة المالك.',
 };
 
 function Overview({ counts, owner }: { counts: Record<string, number>; owner: boolean }) {
@@ -244,10 +244,10 @@ function Overview({ counts, owner }: { counts: Record<string, number>; owner: bo
     </>;
 }
 
-function ReleaseCheckPanel({ result }: {result: ReleaseCheck | null}) {
+function ReleaseCheckPanel({ result, canInstall }: {result: ReleaseCheck | null; canInstall: boolean}) {
     const form = useForm({});
     const messages = {
-        available: 'الحزمة التالية متاحة. نزّلها وارفعها هنا للتحقق من توقيعها وتثبيتها.',
+        available: 'الحزمة التالية متاحة. يتحقق الموقع من توقيعها قبل تثبيتها.',
         missing: 'الحزمة التالية غير منشورة على GitHub حاليًا.',
         unavailable: 'تعذّر التحقق من GitHub. حاول مرة أخرى لاحقًا.',
     };
@@ -258,8 +258,12 @@ function ReleaseCheckPanel({ result }: {result: ReleaseCheck | null}) {
             <button type="button" className="button outline" disabled={form.processing} onClick={() => form.post(adminHref('/updates/check'), {preserveScroll: true})}>
                 {form.processing ? 'جارٍ التحقق…' : 'تحقّق من وجود تحديث'}
             </button>
-            {result?.url && <a className="button primary" href={result.url}>تنزيل الحزمة رقم {result.sequence}</a>}
         </div>
+        {result?.status === 'available' && (canInstall
+            ? <Editor key={result.sequence} url={adminHref(`/updates/install-release/${result.sequence}`)} clear
+                submitLabel={`تثبيت التحديث رقم ${result.sequence} من GitHub`}
+                fields={[{name: 'password', label: 'كلمة مرور المالك الحالية', type: 'password'}]} initial={{password: ''}} />
+            : <p>أكمل إعداد مفتاح التوقيع ومتطلبات الاستضافة لتثبيت التحديث.</p>)}
     </div>;
 }
 
@@ -337,14 +341,19 @@ function Workspace({ section, data, settings, logo, role }: AdminProps) {
             const update = data as UpdateStatus;
             return <section className="panel">
                 <p>الإصدار النشط: {update.active_sequence} · رقم الحزمة التالية: {update.sequence + 1}</p>
-                {!update.available ? <p>يلزم تفعيل امتدادي PHP ZIP وSodium على الاستضافة.</p> : <>
-                    <p>{update.key ? 'ارفع حزمة إرثي الموقّعة بصيغة ZIP.' : 'سجّل مفتاح التوقيع العام مرة واحدة. احتفظ بالمفتاح الخاص خارج الموقع.'}</p>
-                    <Editor key={update.key} url={adminHref('/updates')} clear submitLabel={update.key ? 'تثبيت التحديث' : 'تسجيل مفتاح التوقيع'}
-                        fields={[update.key ? {name: 'bundle', label: 'حزمة التحديث الموقّعة', type: 'file'} : {name: 'key', label: 'مفتاح التوقيع العام Base64'},
+                <ReleaseCheckPanel result={update.release_check} canInstall={update.available && Boolean(update.key)} />
+                {!update.available ? <p>يلزم تفعيل امتدادي PHP ZIP وSodium على الاستضافة.</p> : update.key
+                    ? <details className="admin-rollback">
+                        <summary>رفع حزمة موقّعة يدويًا</summary>
+                        <Editor url={adminHref('/updates')} clear submitLabel="تثبيت الحزمة المرفوعة"
+                            fields={[{name: 'bundle', label: 'حزمة التحديث الموقّعة', type: 'file'},
+                                {name: 'password', label: 'كلمة مرور المالك الحالية', type: 'password'}]}
+                            initial={{bundle: null, password: ''}} />
+                    </details>
+                    : <Editor url={adminHref('/updates')} clear submitLabel="تسجيل مفتاح التوقيع"
+                        fields={[{name: 'key', label: 'مفتاح التوقيع العام Base64'},
                             {name: 'password', label: 'كلمة مرور المالك الحالية', type: 'password'}]}
-                        initial={update.key ? {bundle: null, password: ''} : {key: '', password: ''}} />
-                </>}
-                <ReleaseCheckPanel result={update.release_check} />
+                        initial={{key: '', password: ''}} />}
                 {update.can_rollback && <details className="admin-rollback">
                     <summary>استعادة ملفات الإصدار السابق</summary>
                     <p>استعادة ملفات آخر إصدار سابق. رقم الحزمة التالية يظل محفوظًا.</p>

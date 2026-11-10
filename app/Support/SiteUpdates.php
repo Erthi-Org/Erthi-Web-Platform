@@ -36,10 +36,13 @@ final class SiteUpdates
         });
     }
 
-    public function apply(string $path): void
+    public function apply(string $path, ?int $expectedSequence = null): void
     {
-        $this->locked(function () use ($path): void {
+        $this->locked(function () use ($path, $expectedSequence): void {
             $state = $this->status();
+            if ($expectedSequence !== null && $state['sequence'] + 1 !== $expectedSequence) {
+                throw new RuntimeException('تغيّر الإصدار المطلوب. تحقّق من التحديثات مرة أخرى.');
+            }
             if (! extension_loaded('sodium') || ! class_exists(ZipArchive::class) || $state['key'] === '') {
                 throw new RuntimeException('يلزم تسجيل مفتاح التوقيع وتفعيل امتدادي ZIP وSodium.');
             }

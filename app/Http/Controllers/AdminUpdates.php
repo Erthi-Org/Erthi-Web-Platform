@@ -39,8 +39,34 @@ final class AdminUpdates
         abort_unless($request->user()->role === 'owner', 403);
         $sequence = $updates->status()['sequence'] + 1;
 
-        return redirect('/'.config('erthi.admin_prefix').'/updates')
-            ->with('release_check', $channel->check($sequence));
+        $request->session()->put('release_check', $channel->check($sequence));
+
+        return redirect('/'.config('erthi.admin_prefix').'/updates');
+    }
+
+    public function installRelease(Request $request, SiteUpdates $updates, ReleaseChannel $channel, string $sequence): RedirectResponse
+    {
+        abort_unless($request->user()->role === 'owner', 403);
+        $request->validate(['password' => ['required', 'string', 'current_password']]);
+        $state = $updates->status();
+        $release = $request->session()->get('release_check', []);
+
+        try {
+            if ($state['key'] === '' || ! extension_loaded('sodium') || ! class_exists(\ZipArchive::class)) {
+                throw new RuntimeException('يلزم تسجيل مفتاح التوقيع وتفعيل امتدادي ZIP وSodium.');
+            }
+            if (($release['status'] ?? null) !== 'available' || (string) ($release['sequence'] ?? '') !== $sequence
+                || $release['sequence'] !== $state['sequence'] + 1) {
+                throw new RuntimeException('تحقّق من الإصدار التالي قبل تثبيته.');
+            }
+            $channel->install($release['sequence'], $updates);
+        } catch (RuntimeException $error) {
+            throw ValidationException::withMessages(['password' => $error->getMessage()]);
+        }
+
+        $request->session()->forget('release_check');
+
+        return back()->with('notice', 'تم تثبيت تحديث الموقع من GitHub.');
     }
 
     public function rollback(Request $request, SiteUpdates $updates): RedirectResponse
