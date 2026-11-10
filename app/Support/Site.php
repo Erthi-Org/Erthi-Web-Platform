@@ -26,9 +26,21 @@ class Site
         return $content;
     }
 
-    public static function url(string $locale, string $page = 'home'): string
+    public static function origin(array $settings): string
     {
-        return rtrim(config('app.url'), '/').'/'.$locale.($page === 'home' ? '' : '/'.$page);
+        return rtrim($settings['site_url'] ?? config('app.url'), '/');
+    }
+
+    public static function indexing(array $settings): bool
+    {
+        return ($settings['public_indexing'] ?? null) === null
+            ? config('erthi.indexing')
+            : $settings['public_indexing'] === '1';
+    }
+
+    public static function url(array $settings, string $locale, string $page = 'home'): string
+    {
+        return self::origin($settings).'/'.$locale.($page === 'home' ? '' : '/'.$page);
     }
 
     public static function logo(array $settings): ?string

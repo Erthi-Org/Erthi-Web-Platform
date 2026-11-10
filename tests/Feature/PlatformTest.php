@@ -170,6 +170,44 @@ class PlatformTest extends TestCase
         $this->get('/ar/about')->assertInertia(fn (Page $view) => $view->where('locales', ['ar']));
     }
 
+    public function test_owner_settings_apply_to_public_channels_and_indexing(): void
+    {
+        config(['app.url' => 'https://erthi.org', 'erthi.indexing' => false]);
+        $payload = [
+            'site_url' => 'https://example.org/', 'contact_email' => 'contact@example.org',
+            'facebook_url' => 'https://www.facebook.com/example', 'youtube_url' => null,
+            'x_url' => null, 'title_ar' => 'إرثي', 'title_en' => 'Erthi Initiative',
+            'description_ar' => null, 'description_en' => 'Erthi description',
+            'public_indexing' => true,
+        ];
+
+        $this->actingAs(User::factory()->create(['role' => 'editor']));
+        $this->get('/admin/settings')->assertForbidden();
+        $this->post('/admin/settings', $payload)->assertForbidden();
+
+        $this->actingAs(User::factory()->create(['role' => 'owner']));
+        $this->get('/admin/settings')->assertOk()->assertHeader('X-Robots-Tag', 'noindex, nofollow')
+            ->assertInertia(fn (Page $view) => $view->where('section', 'settings')
+                ->where('data.site_url', 'https://erthi.org')->where('data.public_indexing', false));
+        $this->post('/admin/settings', [...$payload, 'site_url' => 'https://example.org/path', 'x_url' => 'javascript:alert(1)'])
+            ->assertSessionHasErrors(['site_url', 'x_url']);
+        $this->from('/admin/settings')->post('/admin/settings', $payload)
+            ->assertRedirect('/admin/settings')->assertSessionHasNoErrors();
+
+        $this->get('/en/about')->assertInertia(fn (Page $view) => $view
+            ->where('channels.email', 'contact@example.org')->where('channels.facebook', $payload['facebook_url'])
+            ->where('seo.canonical', 'https://example.org/en/about')->where('seo.alternates.ar', 'https://example.org/ar/about')
+            ->where('seo.description', 'Erthi description')->where('seo.index', true));
+        $this->get('/robots.txt')->assertSee('Sitemap: https://example.org/sitemap.xml');
+        $this->get('/sitemap.xml')->assertOk()->assertSee('https://example.org/ar');
+        $this->get('/admin/settings')->assertHeader('X-Robots-Tag', 'noindex, nofollow');
+
+        $this->post('/admin/settings', [...$payload, 'public_indexing' => false, 'facebook_url' => null])
+            ->assertSessionHasNoErrors();
+        $this->get('/ar')->assertInertia(fn (Page $view) => $view->where('channels.facebook', null)->where('seo.index', false));
+        $this->get('/sitemap.xml')->assertNotFound();
+    }
+
     public function test_admin_upload_sanitizes_rasters_and_can_reset_logo(): void
     {
         Storage::fake('local');

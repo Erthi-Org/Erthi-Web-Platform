@@ -8,15 +8,19 @@ use App\Support\Site;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/ar', 302);
-Route::get('/robots.txt', fn () => response(config('erthi.indexing')
-    ? "User-agent: *\nDisallow: /admin\nDisallow: /login\nSitemap: ".rtrim(config('app.url'), '/')."/sitemap.xml\n"
-    : "User-agent: *\nDisallow: /\n", 200, ['Content-Type' => 'text/plain; charset=UTF-8']));
+Route::get('/robots.txt', function () {
+    $settings = Site::settings();
+    return response(Site::indexing($settings)
+        ? "User-agent: *\nDisallow: /admin\nDisallow: /login\nSitemap: ".Site::origin($settings)."/sitemap.xml\n"
+        : "User-agent: *\nDisallow: /\n", 200, ['Content-Type' => 'text/plain; charset=UTF-8']);
+});
 Route::get('/sitemap.xml', function () {
-    abort_unless(config('erthi.indexing'), 404);
+    $settings = Site::settings();
+    abort_unless(Site::indexing($settings), 404);
     $urls = [];
-    foreach (Site::locales(Site::settings()) as $locale) {
+    foreach (Site::locales($settings) as $locale) {
         foreach (config('erthi.pages') as $page) {
-            $urls[] = '<url><loc>'.e(Site::url($locale, $page)).'</loc></url>';
+            $urls[] = '<url><loc>'.e(Site::url($settings, $locale, $page)).'</loc></url>';
         }
     }
 
@@ -35,6 +39,7 @@ Route::prefix($admin)->middleware(['auth', 'can:manage-erthi', 'throttle:90,1', 
     Route::post('/updates/rollback', [AdminUpdates::class, 'rollback'])->middleware('throttle:5,1,erthi-updates');
     Route::post('/projects/{id?}', [AdminSite::class, 'project'])->whereNumber('id');
     Route::post('/content', [AdminSite::class, 'content']);
+    Route::post('/settings', [AdminSite::class, 'settings'])->defaults('section', 'settings');
     Route::post('/settings/{section}', [AdminSite::class, 'settings'])->whereIn('section', ['languages', 'identity', 'seo']);
     Route::post('/submissions/{kind}/{id}', [AdminSite::class, 'review'])->whereIn('kind', ['contact', 'contribute'])->whereNumber('id');
     Route::delete('/submissions/{kind}/{id}', [AdminSite::class, 'deleteSubmission'])->whereIn('kind', ['contact', 'contribute'])->whereNumber('id');

@@ -29,6 +29,13 @@ class PublicSite
             'locales' => $locales,
             'content' => $content,
             'logo' => Site::logo($settings),
+            'channels' => [
+                'email' => $settings['contact_email'] ?? 'admin@erthi.org',
+                'website' => parse_url(Site::origin($settings), PHP_URL_HOST),
+                'facebook' => $settings['facebook_url'] ?? null,
+                'youtube' => $settings['youtube_url'] ?? null,
+                'x' => $settings['x_url'] ?? null,
+            ],
             'projects' => in_array($page, ['home', 'projects'], true)
                 ? DB::table('projects')->where('published', true)->latest('id')->when($page === 'home', fn ($query) => $query->limit(4))
                     ->get(["title_{$locale} as title", "summary_{$locale} as summary", 'repository', 'icon'])
@@ -36,11 +43,11 @@ class PublicSite
             'seo' => [
                 'title' => $title.' | '.$titleSuffix,
                 'description' => str($description)->limit(160)->toString(),
-                'canonical' => Site::url($locale, $page),
-                'alternates' => array_combine($locales, array_map(fn ($lang) => Site::url($lang, $page), $locales))
-                    + ['x-default' => Site::url('ar', $page)],
-                'image' => rtrim(config('app.url'), '/').'/brand/social.jpg',
-                'index' => config('erthi.indexing'),
+                'canonical' => Site::url($settings, $locale, $page),
+                'alternates' => array_combine($locales, array_map(fn ($lang) => Site::url($settings, $lang, $page), $locales))
+                    + ['x-default' => Site::url($settings, 'ar', $page)],
+                'image' => Site::origin($settings).'/brand/social.jpg',
+                'index' => Site::indexing($settings),
             ],
         ]);
     }

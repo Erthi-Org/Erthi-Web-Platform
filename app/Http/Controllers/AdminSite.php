@@ -18,9 +18,9 @@ use Inertia\Inertia;
 
 class AdminSite
 {
-    public const Sections = ['overview', 'projects', 'content', 'languages', 'contribute', 'contact', 'media', 'identity', 'seo', 'users', 'security', 'sessions', 'audit', 'safescan', 'updates'];
+    public const Sections = ['overview', 'projects', 'content', 'languages', 'contribute', 'contact', 'media', 'identity', 'seo', 'settings', 'users', 'security', 'sessions', 'audit', 'safescan', 'updates'];
 
-    public const OwnerSections = ['users', 'security', 'sessions', 'audit', 'safescan', 'updates'];
+    public const OwnerSections = ['users', 'security', 'sessions', 'audit', 'safescan', 'updates', 'settings'];
 
     public function show(Request $request, string $section = 'overview')
     {
@@ -50,6 +50,11 @@ class AdminSite
             'audit' => app(AdminAudit::class)->latest(),
             'safescan' => ['configured' => filled(config('erthi.clamd_socket')), 'result' => $request->session()->get('scan_result')],
             'updates' => $this->updateStatus($request),
+            'settings' => [
+                'site_url' => Site::origin($settings),
+                'contact_email' => $settings['contact_email'] ?? 'admin@erthi.org',
+                'public_indexing' => Site::indexing($settings),
+            ],
             default => [],
         };
 
@@ -156,12 +161,24 @@ class AdminSite
 
     public function settings(Request $request, string $section)
     {
+        abort_if($section === 'settings' && $request->user()->role !== 'owner', 403);
+        $seo = [
+            'title_ar' => ['required', 'string', 'max:60'], 'title_en' => ['required', 'string', 'max:60'],
+            'description_ar' => ['nullable', 'string', 'max:160'], 'description_en' => ['nullable', 'string', 'max:160'],
+        ];
         $rules = match ($section) {
             'languages' => ['english_enabled' => ['required', 'boolean']],
             'identity' => ['logo_id' => ['present', 'nullable', 'integer', 'exists:media,id']],
-            'seo' => [
-                'title_ar' => ['required', 'string', 'max:60'], 'title_en' => ['required', 'string', 'max:60'],
+            'seo' => array_replace($seo, [
                 'description_ar' => ['required', 'string', 'max:160'], 'description_en' => ['required', 'string', 'max:160'],
+            ]),
+            'settings' => $seo + [
+                'site_url' => ['required', 'url:http,https', 'max:254', 'regex:~\Ahttps?://[^/@?#]+/?\z~i'],
+                'contact_email' => ['required', 'email:rfc', 'max:254'],
+                'facebook_url' => ['nullable', 'url:https', 'max:500'],
+                'youtube_url' => ['nullable', 'url:https', 'max:500'],
+                'x_url' => ['nullable', 'url:https', 'max:500'],
+                'public_indexing' => ['required', 'boolean'],
             ],
         };
         $data = $request->validate($rules);

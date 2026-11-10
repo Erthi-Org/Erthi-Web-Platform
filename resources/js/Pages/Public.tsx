@@ -4,7 +4,8 @@ import { developmentHref, HomeScene } from './HomeScene';
 import { Brand, Field, Notice, icon, pageHref, useDirection, type Copy, type Locale } from '../shared';
 
 type Project = {title: string; summary: string; repository: string; icon: string};
-type PublicProps = {locale: Locale; locales: Locale[]; page: string; content: Copy; projects: Project[]; logo: string | null; seo: {title: string}; notice?: string; developmentTopic?: boolean};
+type Channels = {email: string; website: string | null; facebook: string | null; youtube: string | null; x: string | null};
+type PublicProps = {locale: Locale; locales: Locale[]; page: string; content: Copy; projects: Project[]; logo: string | null; channels: Channels; seo: {title: string}; notice?: string; developmentTopic?: boolean};
 const nav = ['home', 'about', 'dream', 'projects', 'contribute', 'contact'];
 
 function Arrow() {
@@ -39,7 +40,7 @@ function Header({ locale, locales, page, content, logo }: PublicProps) {
     </header>;
 }
 
-function Footer({ locale, content, logo }: PublicProps) {
+function Footer({ locale, content, logo, channels }: PublicProps) {
     const ar = locale === 'ar';
     return <footer className="site-footer">
         <div className="shell footer-main">
@@ -48,10 +49,13 @@ function Footer({ locale, content, logo }: PublicProps) {
                 <a href={pageHref(locale, 'privacy')}>{content.privacy.title}</a>
                 <a href={pageHref(locale, 'contact')}>{content.contact.title}</a>
                 <a href="https://github.com/Erthi-Org">{icon('github', 17)} GitHub</a>
-                <a href="mailto:admin@erthi.org">{icon('mail', 20)} <bdi>admin@erthi.org</bdi></a>
+                <a href={`mailto:${channels.email}`}>{icon('mail', 20)} <bdi>{channels.email}</bdi></a>
+                {channels.facebook && <a href={channels.facebook}>Facebook</a>}
+                {channels.youtube && <a href={channels.youtube}>YouTube</a>}
+                {channels.x && <a href={channels.x}>X</a>}
             </div>
         </div>
-        <div className="shell footer-base"><span>© {new Date().getFullYear()} {ar ? 'إرثي' : 'Erthi'}</span><span>ERTHI.ORG</span></div>
+        <div className="shell footer-base"><span>© {new Date().getFullYear()} {ar ? 'إرثي' : 'Erthi'}</span><bdi>{channels.website?.toUpperCase()}</bdi></div>
     </footer>;
 }
 

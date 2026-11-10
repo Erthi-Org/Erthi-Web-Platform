@@ -13,6 +13,7 @@ const sections = {
     media: 'الصور',
     identity: 'الهوية البصرية',
     seo: 'محركات البحث',
+    settings: 'الإعدادات ومحركات البحث',
     users: 'المستخدمون والصلاحيات',
     security: 'أمان الإدارة',
     sessions: 'جلسات المالك',
@@ -26,7 +27,7 @@ const navigationGroups = [
     ['النشر', ['projects', 'content', 'languages', 'media']],
     ['التواصل والصلاحيات', ['contribute', 'contact', 'users']],
     ['الأمان', ['security', 'sessions', 'audit', 'safescan']],
-    ['إعدادات الموقع', ['identity', 'seo', 'updates']],
+    ['إعدادات الموقع', ['identity', 'settings', 'seo', 'updates']],
 ] as const satisfies readonly (readonly [string, readonly Section[]])[];
 
 type Value = string | boolean | File | null;
@@ -39,15 +40,17 @@ type User = {id: number; name: string; email: string; role: string};
 type Page<T> = {data: T[]; prev_page_url: string | null; next_page_url: string | null; current_page: number; last_page: number};
 type SecurityStatus = OwnerSecurity & {secure_cookie: boolean; encrypted_session: boolean; database_sessions: boolean};
 type OwnerSessions = {available: boolean; items: {current: boolean; last_activity: number}[]};
-const ownerSections: readonly Section[] = ['users', 'security', 'sessions', 'audit', 'safescan', 'updates'];
-const sectionIcon = (section: Section, size = 24) => icon(`admin-${section}`, size);
+const ownerSections: readonly Section[] = ['users', 'security', 'sessions', 'audit', 'safescan', 'updates', 'settings'];
+const sectionIcon = (section: Section, size = 24) => icon(`admin-${section === 'settings' ? 'seo' : section}`, size);
 type AuditEvent = {at: string; actor: number; action: string; method: string; status: number};
 type ScanStatus = {configured: boolean; result: 'clean' | 'detected' | 'unavailable' | null};
 type ReleaseCheck = {status: 'available' | 'missing' | 'unavailable'; sequence: number; url?: string};
 type UpdateStatus = {release_check: ReleaseCheck | null; key: string; sequence: number; active_sequence: number; can_rollback: boolean; available: boolean};
+type SiteSettings = {site_url: string; contact_email: string; public_indexing: boolean};
+type FieldGroup = {title: string; icon: Section; fields: Input[]; note?: string};
 type AdminProps = {
     section: Section; settings: Record<string, string>; logo: string | null; role: string; notice?: string;
-    data: Record<string, number> | Record<string, Copy> | Page<Project> | Page<Message> | Page<Media> | Page<User> | UpdateStatus | SecurityStatus | OwnerSessions | AuditEvent[] | ScanStatus | [];
+    data: Record<string, number> | Record<string, Copy> | Page<Project> | Page<Message> | Page<Media> | Page<User> | UpdateStatus | SecurityStatus | OwnerSessions | AuditEvent[] | ScanStatus | SiteSettings | [];
 };
 
 const adminBase = () => document.querySelector<HTMLMetaElement>('meta[name="erthi-admin-base"]')?.content || '/admin';
@@ -56,8 +59,8 @@ const accessHref = () => adminBase() === '/admin' ? '/login' : adminHref('/acces
 const exitHref = () => adminBase() === '/admin' ? '/logout' : adminHref('/exit');
 const sectionHref = (section: Section) => adminHref(section === 'overview' ? '' : `/${section}`);
 
-function Editor({ url, fields, initial, clear = false, submitLabel = 'حفظ التغييرات' }: {
-    url: string; fields: Input[]; initial: Values; clear?: boolean; submitLabel?: string;
+function Editor({ url, fields = [], groups, initial, clear = false, submitLabel = 'حفظ التغييرات' }: {
+    url: string; fields?: Input[]; groups?: FieldGroup[]; initial: Values; clear?: boolean; submitLabel?: string;
 }) {
     const form = useForm<Values>(initial);
     function submit(e: FormEvent) {
@@ -65,25 +68,33 @@ function Editor({ url, fields, initial, clear = false, submitLabel = 'حفظ ا�
         form.post(url, { preserveScroll: true, onSuccess: () => { if (clear) form.reset(); } });
     }
 
-    return <form className="form-stack" onSubmit={submit}>
-        {fields.map(({ name, label, type, options, optional }) => {
-            const value = form.data[name];
-            const error = form.errors[name];
-            const text = typeof value === 'string' ? value : '';
-            if (type === 'checkbox') return <div key={name}><label className="check">
-                <input type="checkbox" checked={Boolean(value)} onChange={e => form.setData(name, e.target.checked)} />{label}
-            </label>{error && <small className="error" role="alert">{error}</small>}</div>;
+    function renderField({ name, label, type, options, optional }: Input) {
+        const value = form.data[name];
+        const error = form.errors[name];
+        const text = typeof value === 'string' ? value : '';
+        if (type === 'checkbox') return <div key={name}><label className="check">
+            <input type="checkbox" checked={Boolean(value)} onChange={e => form.setData(name, e.target.checked)} />{label}
+        </label>{error && <small className="error" role="alert">{error}</small>}</div>;
 
-            return <Field key={name} label={label} error={error}>
-                {options ? <select value={text} required={!optional} onChange={e => form.setData(name, e.target.value)}>
-                    {options.map(([id, title]) => <option value={id} key={id}>{title}</option>)}
-                </select> : type === 'textarea' ? <textarea rows={4} dir="auto" value={text} required={!optional} onChange={e => form.setData(name, e.target.value)} />
-                : type === 'file' ? <input type="file" accept={name === 'bundle' ? '.zip,application/zip' : 'image/png,image/jpeg,image/webp'} required onChange={e => form.setData(name, e.target.files?.[0] ?? null)} />
-                : <input type={type ?? 'text'} dir={type === 'email' ? 'ltr' : 'auto'} value={text} required={!optional}
-                    autoComplete={type === 'password' ? ((url === accessHref() || url.startsWith(adminHref('/updates'))) ? 'current-password' : 'new-password') : type === 'email' ? 'email' : undefined}
-                    onChange={e => form.setData(name, e.target.value)} />}
-            </Field>;
-        })}
+        return <Field key={name} label={label} error={error}>
+            {options ? <select value={text} required={!optional} onChange={e => form.setData(name, e.target.value)}>
+                {options.map(([id, title]) => <option value={id} key={id}>{title}</option>)}
+            </select> : type === 'textarea' ? <textarea rows={4} dir="auto" value={text} required={!optional} onChange={e => form.setData(name, e.target.value)} />
+            : type === 'file' ? <input type="file" accept={name === 'bundle' ? '.zip,application/zip' : 'image/png,image/jpeg,image/webp'} required onChange={e => form.setData(name, e.target.files?.[0] ?? null)} />
+            : <input type={type ?? 'text'} dir={type === 'email' || type === 'url' ? 'ltr' : 'auto'} value={text} required={!optional}
+                autoComplete={type === 'password' ? ((url === accessHref() || url.startsWith(adminHref('/updates'))) ? 'current-password' : 'new-password') : type === 'email' ? 'email' : undefined}
+                onChange={e => form.setData(name, e.target.value)} />}
+        </Field>;
+    }
+
+    return <form className="form-stack" onSubmit={submit}>
+        {groups ? <div className="admin-settings-grid">
+            {groups.map(group => <fieldset key={group.title} className="panel form-stack">
+                <legend>{sectionIcon(group.icon)} {group.title}</legend>
+                {group.fields.map(renderField)}
+                {group.note && <p>{group.note}</p>}
+            </fieldset>)}
+        </div> : fields.map(renderField)}
         <button type="submit" className="button primary" disabled={form.processing}>{submitLabel}</button>
     </form>;
 }
@@ -206,6 +217,7 @@ const sectionDescriptions: Record<Section, string> = {
     media: 'ارفع صور الموقع واستعرض الملفات المتاحة.',
     identity: 'اختر الشعار الذي يظهر للزوار.',
     seo: 'اضبط عناوين الموقع وأوصافه لمحركات البحث.',
+    settings: 'إدارة عنوان الموقع والقنوات الرسمية والظهور في نتائج البحث.',
     users: 'أنشئ حسابات الإدارة وراجع صلاحياتها.',
     security: 'راجع إعدادات الحماية الفعلية لجلسات إدارة إرثي.',
     sessions: 'استعرض جلسات حساب المالك وأنهِ الجلسات الأخرى عند الحاجة.',
@@ -217,7 +229,7 @@ const sectionDescriptions: Record<Section, string> = {
 function Overview({ counts, owner }: { counts: Record<string, number>; owner: boolean }) {
     const inboxes = ['contribute', 'contact'] as const;
     const pending = counts.contribute + counts.contact;
-    const shortcuts: Section[] = owner ? ['projects', 'content', 'security', 'updates'] : ['projects', 'content', 'identity', 'seo'];
+    const shortcuts: Section[] = owner ? ['projects', 'content', 'settings', 'updates'] : ['projects', 'content', 'identity', 'seo'];
 
     return <>
         <section className="admin-cards" aria-label="إحصاءات الموقع">
@@ -366,15 +378,51 @@ function Workspace({ section, data, settings, logo, role }: AdminProps) {
         case 'languages': return <section className="panel"><p>العربية هي اللغة الافتراضية للموقع.</p>
             <Editor url={adminHref('/settings/languages')} fields={[{name: 'english_enabled', label: 'إتاحة النسخة الإنجليزية', type: 'checkbox'}]} initial={{english_enabled: settings.english_enabled !== '0'}} />
         </section>;
-        case 'seo': return <section className="panel"><h2>عنوان الموقع ووصفه</h2>
-            <Editor url={adminHref('/settings/seo')} fields={[
-                {name: 'title_ar', label: 'اسم الموقع بالعربية'}, {name: 'title_en', label: 'اسم الموقع بالإنجليزية'},
-                {name: 'description_ar', label: 'الوصف بالعربية (160 حرفًا)', type: 'textarea'},
-                {name: 'description_en', label: 'الوصف بالإنجليزية (160 حرفًا)', type: 'textarea'},
-            ]} initial={{title_ar: settings.title_ar ?? 'إرثي', title_en: settings.title_en ?? 'Erthi',
-                description_ar: settings.description_ar ?? '', description_en: settings.description_en ?? ''}} />
+        case 'settings':
+        case 'seo':
+            return <SettingsEditor settings={settings} site={section === 'settings' ? data as SiteSettings : undefined} />;
+
+    }
+}
+
+const seoFields: Input[] = [
+    {name: 'title_ar', label: 'العنوان الافتراضي بالعربية'},
+    {name: 'title_en', label: 'العنوان الافتراضي بالإنجليزية'},
+    {name: 'description_ar', label: 'الوصف بالعربية (160 حرفًا)', type: 'textarea'},
+    {name: 'description_en', label: 'الوصف بالإنجليزية (160 حرفًا)', type: 'textarea'},
+];
+
+function SettingsEditor({ settings, site }: {settings: Record<string, string>; site?: SiteSettings}) {
+    const seo = {
+        title_ar: settings.title_ar ?? 'إرثي',
+        title_en: settings.title_en ?? 'Erthi',
+        description_ar: settings.description_ar ?? '',
+        description_en: settings.description_en ?? '',
+    };
+    if (!site) {
+        return <section className="panel">
+            <h2>عنوان الموقع ووصفه</h2>
+            <Editor url={adminHref('/settings/seo')} fields={seoFields} initial={seo} />
         </section>;
     }
+
+    const groups: FieldGroup[] = [
+        {title: 'هوية الموقع والقنوات الرسمية', icon: 'identity', fields: [
+            {name: 'site_url', label: 'عنوان الموقع الرسمي', type: 'url'},
+            {name: 'contact_email', label: 'البريد الإلكتروني للتواصل', type: 'email'},
+            {name: 'facebook_url', label: 'Facebook', type: 'url', optional: true},
+            {name: 'youtube_url', label: 'YouTube', type: 'url', optional: true},
+            {name: 'x_url', label: 'X', type: 'url', optional: true},
+        ]},
+        {title: 'الإعدادات الافتراضية لمحركات البحث', icon: 'seo', fields: [
+            ...seoFields.map(field => ({...field, optional: field.type === 'textarea'})),
+            {name: 'public_indexing', label: 'السماح بفهرسة الصفحات العامة', type: 'checkbox'},
+        ], note: 'يظل الوصول إلى لوحة الإدارة محميًا، وتظل صفحاتها مستبعدة من الفهرسة.'},
+    ];
+
+    return <Editor url={adminHref('/settings')} groups={groups} submitLabel="حفظ الإعدادات" initial={{
+        ...seo, ...site, facebook_url: settings.facebook_url ?? '', youtube_url: settings.youtube_url ?? '', x_url: settings.x_url ?? '',
+    }} />;
 }
 
 export default function Admin(props: AdminProps) {
@@ -395,7 +443,7 @@ export default function Admin(props: AdminProps) {
                 <nav aria-label="إدارة الموقع">{navigationGroups.map(([label, keys]) =>
                     <div className="admin-nav-group" key={label} hidden={!owner && keys.every(key => ownerSections.includes(key))}>
                         <p>{label}</p>
-                        {keys.filter(key => owner || !ownerSections.includes(key)).map(key =>
+                        {keys.filter(key => owner ? key !== 'seo' : !ownerSections.includes(key)).map(key =>
                             <Link key={key} href={sectionHref(key)} aria-current={section === key ? 'page' : undefined} onClick={() => setMenuOpen(false)}>{sectionIcon(key, 24)}{sections[key]}</Link>
                         )}
                     </div>
