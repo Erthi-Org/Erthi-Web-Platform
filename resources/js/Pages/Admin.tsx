@@ -49,8 +49,8 @@ const visibleSections = (keys: readonly Section[], owner: boolean) =>
 const sectionIcon = (section: Section, size = 24) => icon(`admin-${section === 'settings' || section === 'seo-audit' ? 'seo' : section === 'site-health' ? 'security' : section}`, size);
 type AuditEvent = {at: string; actor: number; action: string; method: string; status: number; target?: number; role?: string};
 type ScanStatus = {configured: boolean; result: 'clean' | 'detected' | 'unavailable' | null};
-type ReleaseCheck = {status: 'available' | 'missing' | 'unavailable'; sequence: number; url?: string};
-type UpdateStatus = {release_check: ReleaseCheck | null; key: string; sequence: number; active_sequence: number; can_rollback: boolean; available: boolean};
+type ReleaseCheck = {status: 'available' | 'missing' | 'unavailable'; sequence: number};
+type UpdateStatus = {release_check: ReleaseCheck | null; trust_ready: boolean; sequence: number; active_sequence: number; can_rollback: boolean; available: boolean};
 type SiteSettings = {site_url: string; contact_email: string; public_indexing: boolean};
 type SeoAudit = {indexing: boolean; https: boolean; pages: {
     locale: string; url: string; title: string; has_title: boolean; has_description: boolean; description_shortened: boolean;
@@ -301,11 +301,9 @@ function ReleaseCheckPanel({ result, canInstall }: {result: ReleaseCheck | null;
                 {form.processing ? 'جارٍ التحقق…' : 'تحقّق من وجود تحديث'}
             </button>
         </div>
-        {result?.status === 'available' && (canInstall
-            ? <Editor key={result.sequence} url={adminHref(`/updates/install-release/${result.sequence}`)} clear
+        {result?.status === 'available' && canInstall && <Editor key={result.sequence} url={adminHref(`/updates/install-release/${result.sequence}`)} clear
                 submitLabel={`تثبيت التحديث رقم ${result.sequence} من GitHub`}
-                fields={[{name: 'password', label: 'كلمة مرور المالك الحالية', type: 'password'}]} initial={{password: ''}} />
-            : <p>أكمل إعداد مفتاح التوقيع ومتطلبات الاستضافة لتثبيت التحديث.</p>)}
+                fields={[{name: 'password', label: 'كلمة مرور المالك الحالية', type: 'password'}]} initial={{password: ''}} />}
     </div>;
 }
 
@@ -385,19 +383,9 @@ function Workspace({ section, data, settings, logo, role }: AdminProps) {
             const update = data as UpdateStatus;
             return <section className="panel">
                 <p>الإصدار النشط: {update.active_sequence} · رقم الحزمة التالية: {update.sequence + 1}</p>
-                <ReleaseCheckPanel result={update.release_check} canInstall={update.available && Boolean(update.key)} />
-                {!update.available ? <p>يلزم تفعيل امتدادي PHP ZIP وSodium على الاستضافة.</p> : update.key
-                    ? <details className="admin-rollback">
-                        <summary>رفع حزمة موقّعة يدويًا</summary>
-                        <Editor url={adminHref('/updates')} clear submitLabel="تثبيت الحزمة المرفوعة"
-                            fields={[{name: 'bundle', label: 'حزمة التحديث الموقّعة', type: 'file'},
-                                {name: 'password', label: 'كلمة مرور المالك الحالية', type: 'password'}]}
-                            initial={{bundle: null, password: ''}} />
-                    </details>
-                    : <Editor url={adminHref('/updates')} clear submitLabel="تسجيل مفتاح التوقيع"
-                        fields={[{name: 'key', label: 'مفتاح التوقيع العام Base64'},
-                            {name: 'password', label: 'كلمة مرور المالك الحالية', type: 'password'}]}
-                        initial={{key: '', password: ''}} />}
+                <ReleaseCheckPanel result={update.release_check} canInstall={update.available && update.trust_ready} />
+                {!update.available && <p>يلزم تفعيل امتدادي PHP ZIP وSodium على الاستضافة.</p>}
+                {update.available && !update.trust_ready && <p>قناة التحديث بحاجة إلى إعدادها مرة واحدة على الخادم.</p>}
                 {update.can_rollback && <details className="admin-rollback">
                     <summary>استعادة ملفات الإصدار السابق</summary>
                     <p>استعادة ملفات آخر إصدار سابق. رقم الحزمة التالية يظل محفوظًا.</p>

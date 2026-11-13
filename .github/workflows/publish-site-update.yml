@@ -1,0 +1,87 @@
+name: Publish signed Erthi site update
+
+on:
+  workflow_dispatch:
+    inputs:
+      sequence:
+        description: Next sequence shown on the production owner dashboard
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: erthi-site-update
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, dom, gd, pdo_sqlite, zip, sodium
+          coverage: none
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+      - run: composer install --no-interaction --prefer-dist
+      - run: composer audit --locked && vendor/bin/pint --test
+      - run: npm ci && npm audit --audit-level=moderate
+      - run: npm run check && npm run build
+      - run: cp .env.example .env && php artisan key:generate && php artisan test
+      - name: Collect built assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: erthi-vite-build
+          path: public/build
+          if-no-files-found: error
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: erthi-production-updates
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: zip, sodium
+          coverage: none
+      - uses: actions/download-artifact@v4
+        with:
+          name: erthi-vite-build
+          path: public/build
+      - name: Sign and publish the tested release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SEQUENCE: ${{ inputs.sequence }}
+          SIGNING_KEY: ${{ secrets.ERTHI_UPDATE_SIGNING_KEY }}
+          EXPECTED_PUBLIC_KEY: ${{ vars.ERTHI_RELEASE_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          [[ "$SEQUENCE" =~ ^[1-9][0-9]{0,8}$ ]]
+          test -n "$SIGNING_KEY"
+          test -n "$EXPECTED_PUBLIC_KEY"
+          [[ "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')" == "$GITHUB_SHA" ]]
+          tag="erthi-update-$SEQUENCE"
+          bundle="$RUNNER_TEMP/$tag.zip"
+          key_file="$(mktemp)"
+          trap 'rm -f "$key_file"' EXIT
+          chmod 600 "$key_file"
+          printf '%s\n' "$SIGNING_KEY" > "$key_file"
+          unset SIGNING_KEY
+          mapfile -t files < <(php scripts/sign-update.php files)
+          php scripts/sign-update.php pack "$key_file" "$SEQUENCE" "$bundle" "${files[@]}"
+          php scripts/sign-update.php verify "$EXPECTED_PUBLIC_KEY" "$SEQUENCE" "$bundle"
+          gh release create "$tag" "$bundle" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Erthi site update $SEQUENCE" --notes "Signed site update from $GITHUB_SHA."

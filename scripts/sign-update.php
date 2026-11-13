@@ -1,11 +1,55 @@
 <?php
 
-// Run from an Erthi checkout with Composer dependencies installed.
-require dirname(__DIR__).'/vendor/autoload.php';
+// Run from the Erthi checkout or an extracted update payload.
+require dirname(__DIR__).'/app/Support/SiteUpdates.php';
 
 use App\Support\SiteUpdates;
 
 try {
+    if (($argv[1] ?? '') === 'files' && count($argv) === 2) {
+        $paths = [];
+        foreach (['app', 'config', 'routes', 'resources/views', 'resources/data', 'lang', 'public/build', 'public/brand', 'public/icons'] as $directory) {
+            foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS)) as $file) {
+                if ($file->isFile() && ! $file->isLink() && SiteUpdates::allowed($file->getPathname())) {
+                    $paths[] = $file->getPathname();
+                }
+            }
+        }
+        sort($paths, SORT_STRING);
+        echo implode(PHP_EOL, $paths).PHP_EOL;
+        exit;
+    }
+
+    if (($argv[1] ?? '') === 'verify' && count($argv) === 5) {
+        $public = base64_decode(trim($argv[2]), true);
+        $zip = new ZipArchive;
+        if ($public === false || strlen($public) !== SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES ||
+            $zip->open($argv[4], ZipArchive::RDONLY) !== true) {
+            throw new RuntimeException('Invalid verification key or bundle.');
+        }
+        try {
+            $manifest = $zip->getFromName('manifest.json');
+            $signature = $zip->getFromName('signature.ed25519');
+            if (! is_string($manifest) || ! is_string($signature) || strlen($signature) !== SODIUM_CRYPTO_SIGN_BYTES ||
+                ! sodium_crypto_sign_verify_detached($signature, $manifest, $public)) {
+                throw new RuntimeException('Bundle does not match the configured public key.');
+            }
+            $release = json_decode($manifest, true, flags: JSON_THROW_ON_ERROR);
+            if ($release['product'] !== 'erthi-web' || (string) $release['sequence'] !== $argv[3]) {
+                throw new RuntimeException('Unexpected product or sequence.');
+            }
+            foreach ($release['files'] as $path => $expected) {
+                $bytes = $zip->getFromName('files/'.$path);
+                if (! is_string($bytes) || ! hash_equals($expected, hash('sha256', $bytes))) {
+                    throw new RuntimeException('Bundle checksum failed: '.$path);
+                }
+            }
+        } finally {
+            $zip->close();
+        }
+        exit;
+    }
+
     if (($argv[1] ?? '') === 'keygen' && count($argv) === 3) {
         $pair = sodium_crypto_sign_keypair();
         $mode = umask(0077);

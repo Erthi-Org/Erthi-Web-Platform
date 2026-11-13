@@ -83,10 +83,12 @@ class AdminSite
         $release = $request->session()->get('release_check');
 
         return [
-            'key' => $state['key'],
+            'trust_ready' => $state['key'] !== '',
             'sequence' => $state['sequence'],
             'active_sequence' => $state['active_sequence'] ?? $state['sequence'],
-            'release_check' => ($release['sequence'] ?? null) === $state['sequence'] + 1 ? $release : null,
+            'release_check' => ($release['sequence'] ?? null) === $state['sequence'] + 1
+                ? ['status' => $release['status'], 'sequence' => $release['sequence']]
+                : null,
             'can_rollback' => isset($state['rollback']),
             'available' => extension_loaded('sodium') && class_exists(\ZipArchive::class),
         ];

@@ -16,9 +16,18 @@ final class SiteUpdates
     {
         $file = storage_path('app/private/site-updates/state.json');
 
-        return is_file($file)
+        $state = is_file($file)
             ? json_decode(File::get($file), true, flags: JSON_THROW_ON_ERROR)
             : ['key' => '', 'sequence' => 0];
+        if ($state['key'] === '') {
+            $configuredKey = trim((string) config('erthi.release_public_key'));
+            $decoded = base64_decode($configuredKey, true);
+            if (extension_loaded('sodium') && $decoded !== false && strlen($decoded) === SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES) {
+                $state['key'] = $configuredKey;
+            }
+        }
+
+        return $state;
     }
 
     public function enroll(string $encoded): void

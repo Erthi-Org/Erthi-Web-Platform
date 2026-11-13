@@ -52,7 +52,7 @@ final class ReleaseChannelTest extends TestCase
             $this->actingAs(User::factory()->create(['role' => 'owner']));
             $this->followingRedirects()->post('/admin/updates/check')->assertOk()
                 ->assertInertia(fn (Page $page) => $page->where('data.release_check.status', 'available')
-                    ->where('data.release_check.url', self::Download)->where('data.active_sequence', 1));
+                    ->missing('data.release_check.url')->missing('data.key')->where('data.active_sequence', 1));
             foreach (['missing', 'missing', 'unavailable', 'unavailable'] as $status) {
                 $this->post('/admin/updates/check')->assertRedirect('/admin/updates')
                     ->assertSessionHas('release_check', ['status' => $status, 'sequence' => 3]);
@@ -74,9 +74,8 @@ final class ReleaseChannelTest extends TestCase
         $pair = sodium_crypto_sign_keypair();
         $directory = $storage.'/app/private/site-updates';
         File::ensureDirectoryExists($directory);
-        File::put($directory.'/state.json', json_encode([
-            'key' => base64_encode(sodium_crypto_sign_publickey($pair)), 'sequence' => 2,
-        ], JSON_THROW_ON_ERROR));
+        config(['erthi.release_public_key' => base64_encode(sodium_crypto_sign_publickey($pair))]);
+        File::put($directory.'/state.json', json_encode(['key' => '', 'sequence' => 2], JSON_THROW_ON_ERROR));
 
         try {
             $bundle = $storage.'/release.zip';
