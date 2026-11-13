@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { developmentHref, HomeScene } from './HomeScene';
 import { Brand, Field, Notice, icon, pageHref, useDirection, type Copy, type Locale } from '../shared';
 
-type Project = {title: string; summary: string; repository: string; icon: string};
+type Project = {title: string; summary: string; repository: string; icon: string; platform: 'android' | 'web' | null};
 type Channels = {email: string; website: string | null; facebook: string | null; youtube: string | null; x: string | null};
 type PublicProps = {locale: Locale; locales: Locale[]; page: string; content: Copy; projects: Project[]; logo: string | null; channels: Channels; seo: {title: string}; notice?: string; developmentTopic?: boolean};
 const nav = ['home', 'about', 'dream', 'projects', 'contribute', 'contact'];
@@ -66,7 +66,7 @@ function Projects({ projects, locale }: {projects: Project[]; locale: Locale}) {
         {projects.map(project => <article className="project-card" key={project.repository}>
             <div className="project-top"><span className="icon-tile">{icon(project.icon, 38)}</span><span className="status">{ar ? 'قيد التطوير' : 'In development'}</span></div>
             <h3>{project.title}</h3><p>{project.summary}</p>
-            <div className="project-bottom"><span>{icon('android', 20)} Android</span><a href={`https://github.com/${project.repository}`}>{icon('github', 18)} <span>{ar ? 'المستودع على GitHub' : 'View on GitHub'}</span><Arrow /></a></div>
+            <div className="project-bottom">{project.platform && <span>{icon(project.platform === 'android' ? 'android' : 'development', 20)} {project.platform === 'android' ? 'Android' : ar ? 'ويب' : 'Web'}</span>}<a href={`https://github.com/${project.repository}`}>{icon('github', 18)} <span>{ar ? 'المستودع على GitHub' : 'View on GitHub'}</span><Arrow /></a></div>
         </article>)}
     </div>;
 }

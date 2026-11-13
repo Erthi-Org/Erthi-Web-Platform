@@ -29,13 +29,35 @@ class PlatformTest extends TestCase
                     ->assertInertia(fn (Page $view) => $view->component('Public')->where('page', $page)->where('locale', $locale));
             }
         }
-        $this->get('/ar/projects')->assertInertia(fn (Page $view) => $view->has('projects', 2));
+        $this->get('/ar/projects')->assertInertia(fn (Page $view) => $view->has('projects', 5));
         $this->get('/robots.txt')->assertSee('Disallow: /');
         $this->get('/sitemap.xml')->assertNotFound();
         config(['erthi.indexing' => true, 'app.url' => 'https://erthi.org']);
         $this->get('/sitemap.xml')->assertOk()->assertSee('https://erthi.org/en/projects');
         $this->get('/ar')->assertSee('https://erthi.org/ar', false)->assertSee('index, follow');
         $this->get('/fr')->assertNotFound();
+    }
+
+    public function test_project_catalog_is_localized_and_respects_admin_visibility(): void
+    {
+        $repository = 'Erthi-Org/Erthi-Quran-Education';
+        $this->get('/ar/projects')->assertInertia(fn (Page $view) => $view
+            ->where('projects.2.repository', $repository)->where('projects.2.title', 'إرثي لتعليم القرآن')
+            ->where('projects.2.platform', 'web')->where('projects.3.platform', null));
+        $this->get('/en')->assertInertia(fn (Page $view) => $view
+            ->has('projects', 5)->where('projects.2.title', 'Erthi Quran Education'));
+
+        DB::table('projects')->insert([
+            'title_ar' => 'عنوان معدّل', 'title_en' => 'Edited title',
+            'summary_ar' => 'وصف معدّل', 'summary_en' => 'Edited summary',
+            'repository' => $repository, 'icon' => 'learn', 'published' => true,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $this->get('/en/projects')->assertInertia(fn (Page $view) => $view
+            ->has('projects', 5)->where('projects.0.title', 'Edited title')->where('projects.0.platform', 'web'));
+
+        DB::table('projects')->where('repository', $repository)->update(['published' => false]);
+        $this->get('/en/projects')->assertInertia(fn (Page $view) => $view->has('projects', 4));
     }
 
     public function test_home_preloads_art_and_development_links_preselect_the_topic(): void
@@ -157,10 +179,10 @@ class PlatformTest extends TestCase
             'icon' => 'android', 'published' => false,
         ];
         $this->post('/admin/projects', $project)->assertRedirect()->assertSessionHasNoErrors();
-        $this->get('/en/projects')->assertInertia(fn (Page $view) => $view->has('projects', 2));
+        $this->get('/en/projects')->assertInertia(fn (Page $view) => $view->has('projects', 5));
         $id = DB::table('projects')->where('repository', $project['repository'])->value('id');
         $this->post('/admin/projects/'.$id, [...$project, 'published' => true])->assertRedirect()->assertSessionHasNoErrors();
-        $this->get('/en/projects')->assertInertia(fn (Page $view) => $view->has('projects', 3)->where('projects.0.title', 'Test project'));
+        $this->get('/en/projects')->assertInertia(fn (Page $view) => $view->has('projects', 6)->where('projects.0.title', 'Test project'));
 
         $this->post('/admin/content', ['locale' => 'en', 'page' => 'about', 'title' => 'New title', 'body' => 'Updated content.'])->assertRedirect();
         $this->post('/admin/settings/seo', ['title_ar' => 'إرثي', 'title_en' => 'Erthi Initiative', 'description_ar' => 'وصف الموقع', 'description_en' => 'Erthi description'])->assertRedirect();

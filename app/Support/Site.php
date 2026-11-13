@@ -26,6 +26,38 @@ class Site
         return $content;
     }
 
+    public static function projects(string $locale, bool $home): array
+    {
+        $defaults = json_decode(file_get_contents(resource_path('data/projects.json')), true, flags: JSON_THROW_ON_ERROR);
+        $catalog = array_column($defaults, null, 'repository');
+        $projects = [];
+        foreach (DB::table('projects')->latest('id')->get() as $project) {
+            $entry = $catalog[$project->repository] ?? null;
+            unset($catalog[$project->repository]);
+            if ($project->published) {
+                $projects[] = [
+                    'title' => $project->{"title_{$locale}"},
+                    'summary' => $project->{"summary_{$locale}"},
+                    'repository' => $project->repository,
+                    'icon' => $project->icon,
+                    'platform' => $entry === null ? 'android' : $entry['platform'],
+                ];
+            }
+        }
+
+        foreach ($catalog as $project) {
+            $projects[] = [
+                'title' => $project['title_'.$locale],
+                'summary' => $project['summary_'.$locale],
+                'repository' => $project['repository'],
+                'icon' => $project['icon'],
+                'platform' => $project['platform'],
+            ];
+        }
+
+        return $home ? array_slice($projects, 0, 5) : $projects;
+    }
+
     public static function origin(array $settings): string
     {
         return rtrim($settings['site_url'] ?? config('app.url'), '/');

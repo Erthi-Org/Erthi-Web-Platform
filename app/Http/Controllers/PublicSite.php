@@ -37,8 +37,7 @@ class PublicSite
                 'x' => $settings['x_url'] ?? null,
             ],
             'projects' => in_array($page, ['home', 'projects'], true)
-                ? DB::table('projects')->where('published', true)->latest('id')->when($page === 'home', fn ($query) => $query->limit(4))
-                    ->get(["title_{$locale} as title", "summary_{$locale} as summary", 'repository', 'icon'])
+                ? Site::projects($locale, $page === 'home')
                 : [],
             'seo' => [
                 'title' => $title.' | '.$titleSuffix,

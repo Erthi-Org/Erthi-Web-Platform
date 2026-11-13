@@ -71,7 +71,7 @@ try {
 
     if (($argv[1] ?? '') !== 'pack' || count($argv) < 6 || ! ctype_digit($argv[3]) ||
         (int) $argv[3] < 1 || count($argv) > 505) {
-        throw new RuntimeException("Usage: sign-update.php keygen PRIVATE_KEY_FILE\n       sign-update.php pack PRIVATE_KEY_FILE SEQUENCE OUTPUT.zip PATH [PATH...]");
+        throw new RuntimeException("Usage: sign-update.php files\n       sign-update.php keygen PRIVATE_KEY_FILE\n       sign-update.php pack PRIVATE_KEY_FILE SEQUENCE OUTPUT.zip PATH [PATH...]\n       sign-update.php verify PUBLIC_KEY SEQUENCE BUNDLE.zip");
     }
     $secret = base64_decode(trim((string) file_get_contents($argv[2])), true);
     if ($secret === false || strlen($secret) !== SODIUM_CRYPTO_SIGN_SECRETKEYBYTES) {
