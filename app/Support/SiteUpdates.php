@@ -40,7 +40,7 @@ final class SiteUpdates
     {
         $this->locked(function () use ($path, $expectedSequence): void {
             $state = $this->status();
-            if ($expectedSequence !== null && $state['sequence'] + 1 !== $expectedSequence) {
+            if ($expectedSequence !== null && $expectedSequence !== $state['sequence'] + 1) {
                 throw new RuntimeException('تغيّر الإصدار المطلوب. تحقّق من التحديثات مرة أخرى.');
             }
             if (! extension_loaded('sodium') || ! class_exists(ZipArchive::class) || $state['key'] === '') {

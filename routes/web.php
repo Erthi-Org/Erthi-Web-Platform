@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Route;
 Route::redirect('/', '/ar', 302);
 Route::get('/robots.txt', function () {
     $settings = Site::settings();
+
     return response(Site::indexing($settings)
         ? "User-agent: *\nDisallow: /admin\nDisallow: /login\nSitemap: ".Site::origin($settings)."/sitemap.xml\n"
         : "User-agent: *\nDisallow: /\n", 200, ['Content-Type' => 'text/plain; charset=UTF-8']);
