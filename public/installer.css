@@ -1,0 +1,13 @@
+:root { color-scheme: dark; font-family: system-ui, sans-serif; background: #19110e; color: #fff1dc; }
+body { margin: 0; }
+main { max-width: 42rem; margin: 2rem auto; padding: 1.25rem; }
+h1, a { color: #efc486; }
+a { overflow-wrap: anywhere; }
+form, fieldset, label { display: grid; gap: .45rem; }
+form { gap: 1rem; }
+fieldset { padding: 1rem; border: 1px solid #806044; border-radius: .5rem; min-width: 0; }
+input, select, button { font: inherit; padding: .65rem; border: 1px solid #806044; border-radius: .35rem; }
+button { background: #efc486; color: #24170d; font-weight: 700; cursor: pointer; }
+details { padding-block: .5rem; }
+details label { margin-top: .55rem; }
+[role=alert] { color: #ffc0b0; }

@@ -1,0 +1,29 @@
+[
+    {
+        "title_ar": "إرثي لتعليم القرآن",
+        "title_en": "Erthi Quran Education",
+        "summary_ar": "نظام لإدارة المدارس ودور تحفيظ القرآن، يساعد على تنظيم الحلقات وتسجيل الحضور ومتابعة الحفظ والمراجعة وإعداد تقارير الطلاب. المشروع في مرحلة التطوير.",
+        "summary_en": "A school and Quran memorization center management project for organizing classes, recording attendance, tracking memorization and revision, and preparing student reports. In development.",
+        "repository": "Erthi-Org/Erthi-Quran-Education",
+        "icon": "learn",
+        "platform": "web"
+    },
+    {
+        "title_ar": "المخطوط الحي",
+        "title_en": "The Living Manuscript",
+        "summary_ar": "مشروع رقمي للتراث العربي يهدف إلى إتاحة قراءة المخطوطات والبحث فيها، وربط النص المنسوخ والشروح بصورة الصفحة الأصلية.",
+        "summary_en": "A digital Arabic heritage project that aims to make manuscripts readable and searchable while linking transcriptions and explanations to the original page images.",
+        "repository": "Erthi-Org/Erthi-Living-Manuscript",
+        "icon": "quran",
+        "platform": null
+    },
+    {
+        "title_ar": "مكتبة القدس الجديدة",
+        "title_en": "Al-Quds New Library",
+        "summary_ar": "تطبيق مكتبة رقمية لتصفّح الكتب والبحث عنها والوصول إلى مصادرها، مع إمكانية حفظ العناوين في المفضلة.",
+        "summary_en": "A digital library app for browsing and searching books, finding their sources, and saving titles to a favorites list.",
+        "repository": "Erthi-Org/Erthi-AlQuds-Library",
+        "icon": "library",
+        "platform": "android"
+    }
+]

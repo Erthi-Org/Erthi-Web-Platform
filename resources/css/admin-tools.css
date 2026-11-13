@@ -1,0 +1,45 @@
+@font-face {
+    font-family: 'Layla Diwani';
+    src: url('../assets/layla-diwani.woff2') format('woff2');
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    size-adjust: 155%;
+    unicode-range: U+0600-06FF, U+0750-077F, U+0870-089F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF;
+}
+
+.admin-layout {
+    font-family: 'Noto Kufi Arabic Variable', 'Noto Sans Arabic Variable', sans-serif;
+    background-image: linear-gradient(#0c0e12bf, #0c0e12bf), url('../assets/admin-silver-mesh.svg');
+    background-position: center top;
+    background-size: auto, min(1600px, 160vw) auto;
+    background-repeat: no-repeat, repeat-y;
+}
+
+.admin-layout :is(.admin-heading h1, .admin-tool-group h2, .admin-tool-card h3) {
+    font-family: 'Layla Diwani', 'Noto Kufi Arabic Variable', sans-serif;
+    font-synthesis: none;
+    font-weight: 400;
+    line-height: 1.85;
+}
+
+.admin-layout .admin-heading h1 { font-size: clamp(1.65rem, 4vw, 2.65rem); }
+.admin-tool-group h2 { margin-block: 5px 10px; font-size: 1.55rem; }
+.admin-tool-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 255px), 1fr)); gap: 12px; }
+.admin-main :is(.admin-card, .admin-tool-card) {
+    border-color: #788795;
+    background: #101824f5;
+    box-shadow: inset 0 1px 0 #e4f4ff24;
+}
+.admin-main :is(.admin-card, .admin-tool-card):hover { border-color: var(--gold); }
+.admin-tool-card { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 12px; }
+.admin-tool-card h3 { font-size: 1.34rem; }
+.admin-main .admin-tool-card p { margin: 5px 0 0; font-size: .78rem; }
+
+.owner-seo-results { list-style: none; margin: 0; padding: 0; }
+.owner-seo-results li { padding-block: 10px; border-block-start: 1px solid var(--border); }
+.owner-seo-results bdi { overflow-wrap: anywhere; }
+
+@media print {
+    .admin-layout { background-image: none; }
+}

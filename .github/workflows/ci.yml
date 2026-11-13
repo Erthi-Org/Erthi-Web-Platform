@@ -1,0 +1,64 @@
+name: Erthi CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, 'feature/**']
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: ci-root-only
+          MARIADB_DATABASE: erthi_test
+          MARIADB_USER: erthi_ci
+          MARIADB_PASSWORD: ci-test-only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, dom, gd, pdo_sqlite, pdo_mysql, zip, sodium
+          coverage: none
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+      - run: composer validate --strict
+      - run: composer install --no-interaction --prefer-dist
+      - run: composer audit --locked
+      - run: vendor/bin/pint --test
+      - run: npm ci
+      - run: npm audit --audit-level=moderate
+      - run: npm run check && npm run build
+      - run: cp .env.example .env && php artisan key:generate
+      - name: Run feature suite on SQLite
+        run: php artisan test
+      - name: Reproduce a shared host with COMPACT as the default row format
+        env:
+          MARIADB_CONTAINER: ${{ job.services.mariadb.id }}
+        run: |
+          docker exec "$MARIADB_CONTAINER" mariadb -uroot -pci-root-only \
+            -e "SET GLOBAL innodb_default_row_format = 'compact'"
+      - name: Run feature suite on MariaDB
+        run: php artisan test
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: erthi_test
+          DB_USERNAME: erthi_ci
+          DB_PASSWORD: ci-test-only
