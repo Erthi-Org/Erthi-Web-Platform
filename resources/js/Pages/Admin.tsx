@@ -2,6 +2,7 @@ import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState, type FormEvent } from 'react';
 import OwnerAuthentication, { type OwnerSecurity } from '../Components/OwnerAuthentication';
 import { Brand, Field, Notice, icon, useDirection, type Copy } from '../shared';
+import '../../css/admin-tools.css';
 
 const sections = {
     overview: 'نظرة عامة',
@@ -25,14 +26,14 @@ type Section = keyof typeof sections;
 const navigationGroups = [
     ['نظرة عامة', ['overview']],
     ['النشر', ['projects', 'content', 'languages', 'media']],
-    ['التواصل والصلاحيات', ['contribute', 'contact', 'users']],
-    ['الأمان', ['security', 'sessions', 'audit', 'safescan']],
-    ['إعدادات الموقع', ['identity', 'settings', 'seo', 'updates']],
+    ['التواصل', ['contribute', 'contact']],
+    ['الأمان والصلاحيات', ['users', 'security', 'sessions', 'audit', 'safescan']],
+    ['إعدادات الموقع وتحسين الظهور', ['identity', 'settings', 'seo', 'updates']],
 ] as const satisfies readonly (readonly [string, readonly Section[]])[];
 
 type Value = string | boolean | File | null;
 type Values = Record<string, Value>;
-type Input = {name: string; label: string; type?: string; options?: [string, string][]; optional?: boolean};
+type Input = {name: string; label: string; type?: string; options?: [string, string][]; optional?: boolean; required?: boolean};
 type Project = {id: number; title_ar: string; title_en: string; summary_ar: string; summary_en: string; repository: string; icon: string; published: boolean | number};
 type Message = {id: number; name: string; email: string; topic: string | null; message: string; reviewed_at: string | null; created_at: string};
 type Media = {id: number; name: string};
@@ -41,8 +42,10 @@ type Page<T> = {data: T[]; prev_page_url: string | null; next_page_url: string |
 type SecurityStatus = OwnerSecurity & {secure_cookie: boolean; encrypted_session: boolean; database_sessions: boolean};
 type OwnerSessions = {available: boolean; items: {current: boolean; last_activity: number}[]};
 const ownerSections: readonly Section[] = ['users', 'security', 'sessions', 'audit', 'safescan', 'updates', 'settings'];
+const visibleSections = (keys: readonly Section[], owner: boolean) =>
+    keys.filter(key => owner ? key !== 'seo' : !ownerSections.includes(key));
 const sectionIcon = (section: Section, size = 24) => icon(`admin-${section === 'settings' ? 'seo' : section}`, size);
-type AuditEvent = {at: string; actor: number; action: string; method: string; status: number};
+type AuditEvent = {at: string; actor: number; action: string; method: string; status: number; target?: number; role?: string};
 type ScanStatus = {configured: boolean; result: 'clean' | 'detected' | 'unavailable' | null};
 type ReleaseCheck = {status: 'available' | 'missing' | 'unavailable'; sequence: number; url?: string};
 type UpdateStatus = {release_check: ReleaseCheck | null; key: string; sequence: number; active_sequence: number; can_rollback: boolean; available: boolean};
@@ -68,12 +71,12 @@ function Editor({ url, fields = [], groups, initial, clear = false, submitLabel 
         form.post(url, { preserveScroll: true, onSuccess: () => { if (clear) form.reset(); } });
     }
 
-    function renderField({ name, label, type, options, optional }: Input) {
+    function renderField({ name, label, type, options, optional, required }: Input) {
         const value = form.data[name];
         const error = form.errors[name];
         const text = typeof value === 'string' ? value : '';
         if (type === 'checkbox') return <div key={name}><label className="check">
-            <input type="checkbox" checked={Boolean(value)} onChange={e => form.setData(name, e.target.checked)} />{label}
+            <input type="checkbox" checked={Boolean(value)} required={required} onChange={e => form.setData(name, e.target.checked)} />{label}
         </label>{error && <small className="error" role="alert">{error}</small>}</div>;
 
         return <Field key={name} label={label} error={error}>
@@ -82,7 +85,7 @@ function Editor({ url, fields = [], groups, initial, clear = false, submitLabel 
             </select> : type === 'textarea' ? <textarea rows={4} dir="auto" value={text} required={!optional} onChange={e => form.setData(name, e.target.value)} />
             : type === 'file' ? <input type="file" accept={name === 'bundle' ? '.zip,application/zip' : 'image/png,image/jpeg,image/webp'} required onChange={e => form.setData(name, e.target.files?.[0] ?? null)} />
             : <input type={type ?? 'text'} dir={type === 'email' || type === 'url' ? 'ltr' : 'auto'} value={text} required={!optional}
-                autoComplete={type === 'password' ? ((url === accessHref() || url.startsWith(adminHref('/updates'))) ? 'current-password' : 'new-password') : type === 'email' ? 'email' : undefined}
+                autoComplete={type === 'password' ? (name === 'current_password' || url === accessHref() || url.startsWith(adminHref('/updates')) ? 'current-password' : 'new-password') : type === 'email' ? 'email' : undefined}
                 onChange={e => form.setData(name, e.target.value)} />}
         </Field>;
     }
@@ -189,10 +192,26 @@ function Identity({ page, settings, logo }: {page: Page<Media>; settings: Record
 }
 
 const roles: [string, string][] = [['editor', 'محرّر'], ['viewer', 'موقوف عن الإدارة']];
+const creationRoles: [string, string][] = [...roles, ['owner', 'مالك الموقع']];
+const roleLabel = (role?: string) => creationRoles.find(([value]) => value === role)?.[1];
+
 function Users({ page }: {page: Page<User>}) {
     return <>
-        <details className="panel"><summary>إنشاء حساب</summary><Editor url={adminHref('/users')} clear initial={{name: '', email: '', password: '', role: 'editor'}}
-            fields={[{name: 'name', label: 'الاسم'}, {name: 'email', label: 'البريد الإلكتروني', type: 'email'}, {name: 'password', label: 'كلمة المرور (14 حرفًا على الأقل)', type: 'password'}, {name: 'role', label: 'الصلاحية', options: roles}]} /></details>
+        <details className="panel">
+            <summary>إنشاء حساب</summary>
+            <p>يملك حساب المالك صلاحيات كاملة، بما فيها إنشاء حسابات مالك أخرى وتثبيت تحديثات الموقع.</p>
+            <Editor url={adminHref('/users')} clear submitLabel="إنشاء الحساب"
+                initial={{name: '', email: '', role: 'editor', password: '', password_confirmation: '', current_password: '', identity_confirmed: false}}
+                fields={[
+                    {name: 'name', label: 'الاسم'},
+                    {name: 'email', label: 'البريد الإلكتروني', type: 'email'},
+                    {name: 'role', label: 'الصلاحية', options: creationRoles},
+                    {name: 'password', label: 'كلمة مرور الحساب الجديد (14 حرفًا على الأقل)', type: 'password'},
+                    {name: 'password_confirmation', label: 'تأكيد كلمة مرور الحساب الجديد', type: 'password'},
+                    {name: 'current_password', label: 'كلمة مرور حسابك الحالي', type: 'password'},
+                    {name: 'identity_confirmed', label: 'تحققت من هوية صاحب البريد وأثق بمنحه الصلاحية المحددة.', type: 'checkbox', required: true},
+                ]} />
+        </details>
         {page.data.map(user => <article className="panel" key={user.id}><h2>{user.name}</h2><p><bdi>{user.email}</bdi></p>
             {user.role === 'owner' ? <p>مالك</p> : <Editor url={adminHref(`/users/${user.id}`)} fields={[{name: 'role', label: 'الصلاحية', options: roles}]} initial={{role: user.role}} />}
         </article>)}
@@ -229,7 +248,6 @@ const sectionDescriptions: Record<Section, string> = {
 function Overview({ counts, owner }: { counts: Record<string, number>; owner: boolean }) {
     const inboxes = ['contribute', 'contact'] as const;
     const pending = counts.contribute + counts.contact;
-    const shortcuts: Section[] = owner ? ['projects', 'content', 'settings', 'updates'] : ['projects', 'content', 'identity', 'seo'];
 
     return <>
         <section className="admin-cards" aria-label="إحصاءات الموقع">
@@ -237,22 +255,26 @@ function Overview({ counts, owner }: { counts: Record<string, number>; owner: bo
                 {sectionIcon(key, 28)}<span>{label}</span><strong>{counts[key]}</strong>
             </Link>)}
         </section>
-        <div className="admin-overview-grid">
-            <section className="panel admin-widget">
-                <h2>صندوق المتابعة</h2>
-                <p>{pending === 0 ? 'كل الرسائل والطلبات الواردة تمت مراجعتها.' : 'توزيع الرسائل والطلبات التي تنتظر المراجعة.'}</p>
-                {inboxes.map(key => <Link className="admin-queue" href={sectionHref(key)} key={key}>
-                    {sectionIcon(key, 24)}<span>{sections[key]}</span><strong>{counts[key]}</strong>
-                    <meter aria-label={sections[key]} min={0} max={Math.max(1, pending)} value={counts[key]} />
-                </Link>)}
-            </section>
-            <section className="panel admin-widget">
-                <h2>وصول سريع</h2>
-                {shortcuts.map(key => <Link className="admin-shortcut" href={sectionHref(key)} key={key}>
-                    {sectionIcon(key, 24)}<span>{sections[key]}</span><span aria-hidden="true">←</span>
-                </Link>)}
-            </section>
-        </div>
+        <section className="panel admin-widget">
+            <h2>صندوق المتابعة</h2>
+            <p>{pending === 0 ? 'كل الرسائل والطلبات الواردة تمت مراجعتها.' : 'توزيع الرسائل والطلبات التي تنتظر المراجعة.'}</p>
+            {inboxes.map(key => <Link className="admin-queue" href={sectionHref(key)} key={key}>
+                {sectionIcon(key, 24)}<span>{sections[key]}</span><strong>{counts[key]}</strong>
+                <meter aria-label={sections[key]} min={0} max={Math.max(1, pending)} value={counts[key]} />
+            </Link>)}
+        </section>
+        {navigationGroups.slice(1).map(([label, keys]) => {
+            const tools = visibleSections(keys, owner);
+            return tools.length > 0 && <section className="admin-tool-group" key={label}>
+                <h2>{label}</h2>
+                <div className="admin-tool-grid">
+                    {tools.map(key => <Link className="panel admin-tool-card" href={sectionHref(key)} key={key}>
+                        {sectionIcon(key, 30)}
+                        <div><h3>{sections[key]}</h3><p>{sectionDescriptions[key]}</p></div>
+                    </Link>)}
+                </div>
+            </section>;
+        })}
     </>;
 }
 
@@ -344,7 +366,9 @@ function Workspace({ section, data, settings, logo, role }: AdminProps) {
                 <p>يُعرض معرّف الحساب والإجراء وحالة الاستجابة.</p>
                 {events.length === 0 && <p>لا توجد عمليات مسجّلة حتى الآن.</p>}
                 {events.map((event, index) => <div className="admin-security-row" key={index}>
-                    <span>حساب {event.actor} · <bdi>{event.method} {event.action} · HTTP {event.status}</bdi></span>
+                    <span>حساب {event.actor} · {event.target !== undefined
+                        ? <>أنشأ الحساب {event.target} ({roleLabel(event.role)})</>
+                        : <bdi>{event.method} {event.action} · HTTP {event.status}</bdi>}</span>
                     <time dateTime={event.at}>{format.format(new Date(event.at))}</time>
                 </div>)}
             </section>;
@@ -443,7 +467,7 @@ export default function Admin(props: AdminProps) {
                 <nav aria-label="إدارة الموقع">{navigationGroups.map(([label, keys]) =>
                     <div className="admin-nav-group" key={label} hidden={!owner && keys.every(key => ownerSections.includes(key))}>
                         <p>{label}</p>
-                        {keys.filter(key => owner ? key !== 'seo' : !ownerSections.includes(key)).map(key =>
+                        {visibleSections(keys, owner).map(key =>
                             <Link key={key} href={sectionHref(key)} aria-current={section === key ? 'page' : undefined} onClick={() => setMenuOpen(false)}>{sectionIcon(key, 24)}{sections[key]}</Link>
                         )}
                     </div>

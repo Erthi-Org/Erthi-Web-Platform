@@ -8,7 +8,7 @@ use SplFileObject;
 
 final class AdminAudit
 {
-    public function record(int $actor, string $action, string $method, int $status): void
+    public function record(int $actor, string $action, string $method, int $status, array $account = []): void
     {
         Log::build([
             'driver' => 'daily',
@@ -17,7 +17,7 @@ final class AdminAudit
             'locking' => true,
             'permission' => 0600,
             'formatter' => JsonFormatter::class,
-        ])->info('admin.request', compact('actor', 'action', 'method', 'status'));
+        ])->info('admin.request', compact('actor', 'action', 'method', 'status') + $account);
     }
 
     public function latest(): array
