@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Support\AdminAudit;
+use App\Support\OwnerTools;
 use App\Support\SafeScan;
 use App\Support\Site;
 use App\Support\SiteUpdates;
@@ -19,9 +20,9 @@ use Inertia\Inertia;
 
 class AdminSite
 {
-    public const Sections = ['overview', 'projects', 'content', 'languages', 'contribute', 'contact', 'media', 'identity', 'seo', 'settings', 'users', 'security', 'sessions', 'audit', 'safescan', 'updates'];
+    public const Sections = ['overview', 'projects', 'content', 'languages', 'contribute', 'contact', 'media', 'identity', 'seo', 'settings', 'users', 'security', 'sessions', 'audit', 'safescan', 'updates', 'site-health', 'seo-audit'];
 
-    public const OwnerSections = ['users', 'security', 'sessions', 'audit', 'safescan', 'updates', 'settings'];
+    public const OwnerSections = ['users', 'security', 'sessions', 'audit', 'safescan', 'updates', 'settings', 'site-health', 'seo-audit'];
 
     public function show(Request $request, string $section = 'overview')
     {
@@ -51,6 +52,8 @@ class AdminSite
             'audit' => app(AdminAudit::class)->latest(),
             'safescan' => ['configured' => filled(config('erthi.clamd_socket')), 'result' => $request->session()->get('scan_result')],
             'updates' => $this->updateStatus($request),
+            'site-health' => app(OwnerTools::class)->health($settings),
+            'seo-audit' => app(OwnerTools::class)->seo($settings),
             'settings' => [
                 'site_url' => Site::origin($settings),
                 'contact_email' => $settings['contact_email'] ?? 'admin@erthi.org',

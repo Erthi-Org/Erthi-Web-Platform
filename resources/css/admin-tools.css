@@ -36,6 +36,10 @@
 .admin-tool-card h3 { font-size: 1.34rem; }
 .admin-main .admin-tool-card p { margin: 5px 0 0; font-size: .78rem; }
 
+.owner-seo-results { list-style: none; margin: 0; padding: 0; }
+.owner-seo-results li { padding-block: 10px; border-block-start: 1px solid var(--border); }
+.owner-seo-results bdi { overflow-wrap: anywhere; }
+
 @media print {
     .admin-layout { background-image: none; }
 }

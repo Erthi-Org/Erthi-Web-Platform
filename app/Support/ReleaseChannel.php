@@ -27,11 +27,18 @@ final class ReleaseChannel
 
         $destination = Utils::streamFor($file);
         try {
-            $client = Http::withoutRedirecting()->connectTimeout(5)->timeout(30)
-                ->withOptions(['stream' => true, 'read_timeout' => 10]);
+            $client = Http::withoutRedirecting()->connectTimeout(5)->timeout(180)
+                ->withOptions(['stream' => true, 'read_timeout' => 15]);
             try {
-                $response = $client->get($release['url']);
+                if (isset($release['asset_id'])) {
+                    $response = (clone $client)->accept('application/octet-stream')
+                        ->withToken($this->token())
+                        ->get('https://api.github.com/repos/'.self::Repository.'/releases/assets/'.$release['asset_id']);
+                } else {
+                    $response = $client->get($release['url']);
+                }
                 if ($response->status() === 302) {
+                    $response->toPsrResponse()->getBody()->close();
                     $location = $response->header('Location');
                     $target = parse_url($location);
                     if (($target['scheme'] ?? null) !== 'https'
@@ -42,6 +49,7 @@ final class ReleaseChannel
                     $response = $client->get($location);
                 }
                 if (! $response->ok()) {
+                    $response->toPsrResponse()->getBody()->close();
                     throw new RuntimeException('تعذّر تنزيل الحزمة من GitHub.');
                 }
                 $body = $response->toPsrResponse()->getBody();
@@ -50,8 +58,8 @@ final class ReleaseChannel
                 } finally {
                     $body->close();
                 }
-            } catch (ConnectionException|RuntimeException $error) {
-                throw new RuntimeException('تعذّر تنزيل حزمة التحديث من GitHub.', previous: $error);
+            } catch (ConnectionException|RuntimeException) {
+                throw new RuntimeException('تعذّر إكمال تنزيل حزمة التحديث من GitHub. لم يبدأ التثبيت.');
             }
             if (ftell($file) > self::DownloadLimit) {
                 throw new RuntimeException('حزمة التحديث تتجاوز 20 ميغابايت.');
@@ -70,10 +78,13 @@ final class ReleaseChannel
         $url = 'https://github.com/'.self::Repository.'/releases/download/'.$tag.'/'.$filename;
 
         try {
-            $response = Http::accept('application/vnd.github+json')
+            $request = Http::accept('application/vnd.github+json')
                 ->withHeaders(['X-GitHub-Api-Version' => '2022-11-28'])
-                ->withoutRedirecting()->connectTimeout(3)->timeout(8)
-                ->get('https://api.github.com/repos/'.self::Repository.'/releases/tags/'.$tag);
+                ->withoutRedirecting()->connectTimeout(3)->timeout(8);
+            if ($this->token() !== '') {
+                $request->withToken($this->token());
+            }
+            $response = $request->get('https://api.github.com/repos/'.self::Repository.'/releases/tags/'.$tag);
         } catch (ConnectionException) {
             return ['status' => 'unavailable', 'sequence' => $sequence];
         }
@@ -91,11 +102,24 @@ final class ReleaseChannel
                 if (is_array($asset) && ($asset['name'] ?? null) === $filename
                     && ($asset['state'] ?? null) === 'uploaded'
                     && ($asset['browser_download_url'] ?? null) === $url) {
-                    return ['status' => 'available', 'sequence' => $sequence, 'url' => $url];
+                    $release = ['status' => 'available', 'sequence' => $sequence, 'url' => $url];
+                    if ($this->token() !== '') {
+                        if (! is_int($asset['id'] ?? null) || $asset['id'] < 1) {
+                            return ['status' => 'unavailable', 'sequence' => $sequence];
+                        }
+                        $release['asset_id'] = $asset['id'];
+                    }
+
+                    return $release;
                 }
             }
         }
 
         return ['status' => 'missing', 'sequence' => $sequence];
+    }
+
+    private function token(): string
+    {
+        return trim((string) config('erthi.release_github_token'));
     }
 }

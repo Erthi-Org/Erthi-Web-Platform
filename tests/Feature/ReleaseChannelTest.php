@@ -3,11 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\ReleaseChannel;
 use App\Support\SiteUpdates;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Page;
+use RuntimeException;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -125,5 +128,34 @@ final class ReleaseChannelTest extends TestCase
             File::delete(base_path($path));
             File::deleteDirectory($storage);
         }
+    }
+
+    public function test_private_asset_download_does_not_forward_github_token_to_the_cdn(): void
+    {
+        config(['erthi.release_github_token' => 'test-only-token']);
+        $assetUrl = 'https://api.github.com/repos/Erthi-Org/Erthi-Web-Platform/releases/assets/123';
+        $cdn = 'https://release-assets.githubusercontent.com/update.zip';
+        Http::preventStrayRequests();
+        Http::fake([
+            self::Endpoint => Http::response(['tag_name' => 'erthi-update-3', 'draft' => false, 'assets' => [
+                ['id' => 123, 'name' => 'erthi-update-3.zip', 'state' => 'uploaded', 'browser_download_url' => self::Download],
+            ]]),
+            $assetUrl => Http::response('', 302, ['Location' => $cdn]),
+            $cdn => Http::failedConnection('signed URL details'),
+        ]);
+
+        try {
+            app(ReleaseChannel::class)->install(3, app(SiteUpdates::class));
+            $this->fail('A failed asset download must not reach the installer.');
+        } catch (RuntimeException $error) {
+            $this->assertStringContainsString('لم يبدأ التثبيت', $error->getMessage());
+            $this->assertNull($error->getPrevious());
+        }
+        Http::assertSent(fn (Request $request) => $request->url() === self::Endpoint
+            && $request->hasHeader('Authorization', 'Bearer test-only-token'));
+        Http::assertSent(fn (Request $request) => $request->url() === $assetUrl
+            && $request->hasHeader('Accept', 'application/octet-stream')
+            && $request->hasHeader('Authorization', 'Bearer test-only-token'));
+        Http::assertSent(fn (Request $request) => $request->url() === $cdn && ! $request->hasHeader('Authorization'));
     }
 }

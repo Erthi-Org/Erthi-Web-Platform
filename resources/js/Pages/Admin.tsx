@@ -21,14 +21,16 @@ const sections = {
     audit: 'سجل التدقيق',
     safescan: 'فحص الملفات',
     updates: 'تحديثات الموقع',
+    'site-health': 'حالة النظام',
+    'seo-audit': 'تدقيق الفهرسة',
 } as const;
 type Section = keyof typeof sections;
 const navigationGroups = [
     ['نظرة عامة', ['overview']],
     ['النشر', ['projects', 'content', 'languages', 'media']],
     ['التواصل', ['contribute', 'contact']],
-    ['الأمان والصلاحيات', ['users', 'security', 'sessions', 'audit', 'safescan']],
-    ['إعدادات الموقع وتحسين الظهور', ['identity', 'settings', 'seo', 'updates']],
+    ['الأمان والصلاحيات', ['users', 'security', 'sessions', 'audit', 'safescan', 'site-health']],
+    ['إعدادات الموقع وتحسين الظهور', ['identity', 'settings', 'seo', 'seo-audit', 'updates']],
 ] as const satisfies readonly (readonly [string, readonly Section[]])[];
 
 type Value = string | boolean | File | null;
@@ -41,19 +43,23 @@ type User = {id: number; name: string; email: string; role: string};
 type Page<T> = {data: T[]; prev_page_url: string | null; next_page_url: string | null; current_page: number; last_page: number};
 type SecurityStatus = OwnerSecurity & {secure_cookie: boolean; encrypted_session: boolean; database_sessions: boolean};
 type OwnerSessions = {available: boolean; items: {current: boolean; last_activity: number}[]};
-const ownerSections: readonly Section[] = ['users', 'security', 'sessions', 'audit', 'safescan', 'updates', 'settings'];
+const ownerSections: readonly Section[] = ['users', 'security', 'sessions', 'audit', 'safescan', 'updates', 'settings', 'site-health', 'seo-audit'];
 const visibleSections = (keys: readonly Section[], owner: boolean) =>
     keys.filter(key => owner ? key !== 'seo' : !ownerSections.includes(key));
-const sectionIcon = (section: Section, size = 24) => icon(`admin-${section === 'settings' ? 'seo' : section}`, size);
+const sectionIcon = (section: Section, size = 24) => icon(`admin-${section === 'settings' || section === 'seo-audit' ? 'seo' : section === 'site-health' ? 'security' : section}`, size);
 type AuditEvent = {at: string; actor: number; action: string; method: string; status: number; target?: number; role?: string};
 type ScanStatus = {configured: boolean; result: 'clean' | 'detected' | 'unavailable' | null};
 type ReleaseCheck = {status: 'available' | 'missing' | 'unavailable'; sequence: number; url?: string};
 type UpdateStatus = {release_check: ReleaseCheck | null; key: string; sequence: number; active_sequence: number; can_rollback: boolean; available: boolean};
 type SiteSettings = {site_url: string; contact_email: string; public_indexing: boolean};
+type SeoAudit = {indexing: boolean; https: boolean; pages: {
+    locale: string; url: string; title: string; has_title: boolean; has_description: boolean; description_shortened: boolean;
+}[]};
+type HealthChecks = Record<string, boolean>;
 type FieldGroup = {title: string; icon: Section; fields: Input[]; note?: string};
 type AdminProps = {
     section: Section; settings: Record<string, string>; logo: string | null; role: string; notice?: string;
-    data: Record<string, number> | Record<string, Copy> | Page<Project> | Page<Message> | Page<Media> | Page<User> | UpdateStatus | SecurityStatus | OwnerSessions | AuditEvent[] | ScanStatus | SiteSettings | [];
+    data: Record<string, number> | Record<string, Copy> | Page<Project> | Page<Message> | Page<Media> | Page<User> | UpdateStatus | SecurityStatus | OwnerSessions | AuditEvent[] | ScanStatus | SiteSettings | SeoAudit | HealthChecks | [];
 };
 
 const adminBase = () => document.querySelector<HTMLMetaElement>('meta[name="erthi-admin-base"]')?.content || '/admin';
@@ -243,6 +249,8 @@ const sectionDescriptions: Record<Section, string> = {
     audit: 'راجع طلبات التعديل الإدارية المسجّلة على الموقع.',
     safescan: 'افحص ملفًا بمحرك ClamAV المحلي قبل استخدامه.',
     updates: 'تحقّق من إصدارات GitHub وثبّت التحديث الموقّع من لوحة المالك.',
+    'site-health': 'راجع متطلبات التشغيل والامتدادات وإعدادات الاستضافة.',
+    'seo-audit': 'راجع العناوين والأوصاف وعناوين الصفحات لكل لغة مفعّلة.',
 };
 
 function Overview({ counts, owner }: { counts: Record<string, number>; owner: boolean }) {
@@ -396,6 +404,30 @@ function Workspace({ section, data, settings, logo, role }: AdminProps) {
                     <Editor url={adminHref('/updates/rollback')} clear submitLabel="استعادة الإصدار السابق"
                         fields={[{name: 'password', label: 'كلمة مرور المالك الحالية', type: 'password'}]} initial={{password: ''}} />
                 </details>}
+            </section>;
+        }
+        case 'site-health': return <section className="panel admin-widget">
+            <h2>متطلبات التشغيل</h2>
+            {Object.entries(data as HealthChecks).map(([label, passed]) => <div className="admin-security-row" key={label}>
+                <span>{label}</span><strong>{passed ? 'متاح' : 'يحتاج مراجعة'}</strong>
+            </div>)}
+        </section>;
+        case 'seo-audit': {
+            const audit = data as SeoAudit;
+            return <section className="panel admin-widget">
+                <h2>حالة الصفحات العامة</h2>
+                <p>الفهرسة {audit.indexing ? 'مسموح بها' : 'معطّلة'} · HTTPS {audit.https ? 'مفعّل في عنوان الموقع' : 'يحتاج مراجعة'}</p>
+                <Link className="text-link" href={sectionHref('settings')}>تعديل إعدادات الفهرسة</Link>
+                <ul className="owner-seo-results">
+                    {audit.pages.map(page => <li key={page.url}>
+                        <h3>{page.title || 'صفحة بلا عنوان'} <bdi>({page.locale})</bdi></h3>
+                        <bdi>{page.url}</bdi>
+                        <p>{page.has_title && page.has_description ? 'العنوان والوصف موجودان' : [
+                            !page.has_title && 'العنوان مفقود',
+                            !page.has_description && 'الوصف مفقود',
+                        ].filter(Boolean).join(' · ')}{page.description_shortened ? ' · يُختصر الوصف عند العرض' : ''}</p>
+                    </li>)}
+                </ul>
             </section>;
         }
         case 'users': return <Users page={data as Page<User>} />;
