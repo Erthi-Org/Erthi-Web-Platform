@@ -21,6 +21,8 @@ const sections = {
     audit: 'سجل التدقيق',
     safescan: 'فحص الملفات',
     updates: 'تحديثات الموقع',
+    'seo-audit': 'تدقيق محركات البحث',
+    'system-health': 'حالة النظام',
 } as const;
 type Section = keyof typeof sections;
 const navigationGroups = [
@@ -28,7 +30,7 @@ const navigationGroups = [
     ['النشر', ['projects', 'content', 'languages', 'media']],
     ['التواصل', ['contribute', 'contact']],
     ['الأمان والصلاحيات', ['users', 'security', 'sessions', 'audit', 'safescan']],
-    ['إعدادات الموقع وتحسين الظهور', ['identity', 'settings', 'seo', 'updates']],
+    ['إعدادات الموقع وتحسين الظهور', ['identity', 'settings', 'seo', 'seo-audit', 'system-health', 'updates']],
 ] as const satisfies readonly (readonly [string, readonly Section[]])[];
 
 type Value = string | boolean | File | null;
@@ -41,19 +43,22 @@ type User = {id: number; name: string; email: string; role: string};
 type Page<T> = {data: T[]; prev_page_url: string | null; next_page_url: string | null; current_page: number; last_page: number};
 type SecurityStatus = OwnerSecurity & {secure_cookie: boolean; encrypted_session: boolean; database_sessions: boolean};
 type OwnerSessions = {available: boolean; items: {current: boolean; last_activity: number}[]};
-const ownerSections: readonly Section[] = ['users', 'security', 'sessions', 'audit', 'safescan', 'updates', 'settings'];
+const ownerSections: readonly Section[] = ['users', 'security', 'sessions', 'audit', 'safescan', 'updates', 'settings', 'seo-audit', 'system-health'];
 const visibleSections = (keys: readonly Section[], owner: boolean) =>
     keys.filter(key => owner ? key !== 'seo' : !ownerSections.includes(key));
-const sectionIcon = (section: Section, size = 24) => icon(`admin-${section === 'settings' ? 'seo' : section}`, size);
+const toolIcons: Partial<Record<Section, string>> = {settings: 'seo', 'seo-audit': 'seo', 'system-health': 'overview'};
+const sectionIcon = (section: Section, size = 24) => icon(`admin-${toolIcons[section] ?? section}`, size);
 type AuditEvent = {at: string; actor: number; action: string; method: string; status: number; target?: number; role?: string};
 type ScanStatus = {configured: boolean; result: 'clean' | 'detected' | 'unavailable' | null};
 type ReleaseCheck = {status: 'available' | 'missing' | 'unavailable'; sequence: number; url?: string};
 type UpdateStatus = {release_check: ReleaseCheck | null; key: string; sequence: number; active_sequence: number; can_rollback: boolean; available: boolean};
 type SiteSettings = {site_url: string; contact_email: string; public_indexing: boolean};
+type SeoAudit = {indexing: boolean; pages: {locale: string; url: string; title: string; description: string; checks: Record<string, boolean>}[]};
+type RuntimeChecks = Record<string, boolean>;
 type FieldGroup = {title: string; icon: Section; fields: Input[]; note?: string};
 type AdminProps = {
     section: Section; settings: Record<string, string>; logo: string | null; role: string; notice?: string;
-    data: Record<string, number> | Record<string, Copy> | Page<Project> | Page<Message> | Page<Media> | Page<User> | UpdateStatus | SecurityStatus | OwnerSessions | AuditEvent[] | ScanStatus | SiteSettings | [];
+    data: Record<string, number> | Record<string, Copy> | Page<Project> | Page<Message> | Page<Media> | Page<User> | UpdateStatus | SecurityStatus | OwnerSessions | AuditEvent[] | ScanStatus | SiteSettings | SeoAudit | RuntimeChecks | [];
 };
 
 const adminBase = () => document.querySelector<HTMLMetaElement>('meta[name="erthi-admin-base"]')?.content || '/admin';
@@ -243,7 +248,49 @@ const sectionDescriptions: Record<Section, string> = {
     audit: 'راجع طلبات التعديل الإدارية المسجّلة على الموقع.',
     safescan: 'افحص ملفًا بمحرك ClamAV المحلي قبل استخدامه.',
     updates: 'تحقّق من إصدارات GitHub وثبّت التحديث الموقّع من لوحة المالك.',
+    'seo-audit': 'راجع بيانات الصفحات وعناوينها الأساسية وإعداد الفهرسة.',
+    'system-health': 'تحقّق من متطلبات التشغيل والتحديث الموقّع.',
 };
+
+const seoChecks: Record<string, string> = {
+    title: 'عنوان موجود',
+    description: 'وصف موجود',
+    unique_title: 'عنوان فريد',
+    unique_description: 'وصف فريد',
+    https: 'رابط أساسي عبر HTTPS',
+};
+const runtimeChecks: Record<string, string> = {
+    php: 'PHP 8.4 أو أحدث',
+    debug: 'وضع تصحيح الأخطاء معطّل',
+    key: 'مفتاح التطبيق مضبوط',
+    https: 'عنوان الموقع يستخدم HTTPS',
+    database: 'برنامج تشغيل قاعدة البيانات متاح',
+    zip: 'امتداد ZIP متاح',
+    sodium: 'امتداد Sodium متاح',
+    storage: 'التخزين الخاص قابل للكتابة',
+};
+
+function CheckRows({ checks, labels }: {checks: Record<string, boolean>; labels: Record<string, string>}) {
+    return <dl>{Object.entries(labels).map(([key, label]) => <div className="admin-security-row" key={key}>
+        <dt>{label}</dt><dd>{checks[key] ? 'مستوفى' : 'يحتاج مراجعة'}</dd>
+    </div>)}</dl>;
+}
+
+function SeoAuditPanel({ audit }: {audit: SeoAudit}) {
+    return <>
+        <section className="panel">
+            <h2>{audit.indexing ? 'الفهرسة مسموحة' : 'الفهرسة معطّلة'}</h2>
+            <p>هذا فحص محلي لبيانات الصفحات ولا يقيس حالة الفهرسة لدى Google.</p>
+            <Link className="text-link" href={sectionHref('settings')}>إعدادات محركات البحث</Link>
+        </section>
+        {audit.pages.map(page => <details className="panel" key={page.url}>
+            <summary><bdi>{page.title}</bdi></summary>
+            <p className="owner-seo-url"><bdi>{page.url}</bdi></p>
+            <p><bdi>{page.description}</bdi></p>
+            <CheckRows checks={page.checks} labels={seoChecks} />
+        </details>)}
+    </>;
+}
 
 function Overview({ counts, owner }: { counts: Record<string, number>; owner: boolean }) {
     const inboxes = ['contribute', 'contact'] as const;
@@ -310,6 +357,8 @@ function Workspace({ section, data, settings, logo, role }: AdminProps) {
         case 'contribute': return <Inbox page={data as Page<Message>} section={section} />;
         case 'media': return <MediaEditor page={data as Page<Media>} />;
         case 'identity': return <Identity page={data as Page<Media>} logo={logo} settings={settings} />;
+        case 'seo-audit': return <SeoAuditPanel audit={data as SeoAudit} />;
+        case 'system-health': return <section className="panel"><CheckRows checks={data as RuntimeChecks} labels={runtimeChecks} /></section>;
         case 'security': {
             const status = data as SecurityStatus;
             const checks = [

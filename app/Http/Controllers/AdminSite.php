@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Support\AdminAudit;
+use App\Support\OwnerSiteChecks;
 use App\Support\SafeScan;
 use App\Support\Site;
 use App\Support\SiteUpdates;
@@ -19,9 +20,9 @@ use Inertia\Inertia;
 
 class AdminSite
 {
-    public const Sections = ['overview', 'projects', 'content', 'languages', 'contribute', 'contact', 'media', 'identity', 'seo', 'settings', 'users', 'security', 'sessions', 'audit', 'safescan', 'updates'];
+    public const Sections = ['overview', 'projects', 'content', 'languages', 'contribute', 'contact', 'media', 'identity', 'seo', 'settings', 'users', 'security', 'sessions', 'audit', 'safescan', 'updates', 'seo-audit', 'system-health'];
 
-    public const OwnerSections = ['users', 'security', 'sessions', 'audit', 'safescan', 'updates', 'settings'];
+    public const OwnerSections = ['users', 'security', 'sessions', 'audit', 'safescan', 'updates', 'settings', 'seo-audit', 'system-health'];
 
     public function show(Request $request, string $section = 'overview')
     {
@@ -50,6 +51,8 @@ class AdminSite
             'sessions' => $this->sessions($request),
             'audit' => app(AdminAudit::class)->latest(),
             'safescan' => ['configured' => filled(config('erthi.clamd_socket')), 'result' => $request->session()->get('scan_result')],
+            'seo-audit' => app(OwnerSiteChecks::class)->seo($settings),
+            'system-health' => app(OwnerSiteChecks::class)->runtime($settings),
             'updates' => $this->updateStatus($request),
             'settings' => [
                 'site_url' => Site::origin($settings),

@@ -43,6 +43,23 @@ class Site
         return self::origin($settings).'/'.$locale.($page === 'home' ? '' : '/'.$page);
     }
 
+    public static function seo(array $settings, string $locale, string $page, array $copy): array
+    {
+        $locales = self::locales($settings);
+        $suffix = $settings['title_'.$locale] ?? ($locale === 'ar' ? 'إرثي' : 'Erthi');
+        $description = $settings['description_'.$locale] ?? $copy['body'];
+
+        return [
+            'title' => $copy['title'].' | '.$suffix,
+            'description' => str($description)->limit(160)->toString(),
+            'canonical' => self::url($settings, $locale, $page),
+            'alternates' => array_combine($locales, array_map(fn ($lang) => self::url($settings, $lang, $page), $locales))
+                + ['x-default' => self::url($settings, 'ar', $page)],
+            'image' => self::origin($settings).'/brand/social.jpg',
+            'index' => self::indexing($settings),
+        ];
+    }
+
     public static function logo(array $settings): ?string
     {
         return isset($settings['logo_id']) ? '/media/'.(int) $settings['logo_id'] : null;

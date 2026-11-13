@@ -34,6 +34,7 @@
 .admin-main :is(.admin-card, .admin-tool-card):hover { border-color: var(--gold); }
 .admin-tool-card { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 12px; }
 .admin-tool-card h3 { font-size: 1.34rem; }
+.owner-seo-url { overflow-wrap: anywhere; }
 .admin-main .admin-tool-card p { margin: 5px 0 0; font-size: .78rem; }
 
 @media print {
