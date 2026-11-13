@@ -22,6 +22,7 @@ final class RecordAdminAudit
                     class_basename($request->route()->getActionName()),
                     $request->method(),
                     $response->getStatusCode(),
+                    $request->attributes->get('audit.account', []),
                 );
             } catch (Throwable $error) {
                 report($error);

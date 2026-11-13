@@ -7,6 +7,7 @@ const pages = {
     Public: () => import('./Pages/Public').then(module => module.default),
     Admin: () => import('./Pages/Admin').then(module => module.default),
     Login: () => import('./Pages/Login').then(module => module.default),
+    AuthenticationChallenge: () => import('./Pages/AuthenticationChallenge').then(module => module.default),
 };
 void createInertiaApp({
     resolve: name => pages[name as keyof typeof pages](),

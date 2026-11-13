@@ -8,6 +8,7 @@ use App\Support\OwnerSiteChecks;
 use App\Support\SafeScan;
 use App\Support\Site;
 use App\Support\SiteUpdates;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -262,24 +263,41 @@ class AdminSite
         if (is_string($request->input('email'))) {
             $request->merge(['email' => strtolower(trim($request->input('email')))]);
         }
-        $creatingOwner = $request->input('role') === 'owner';
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email:rfc', 'max:254', Rule::unique('users')],
-            'password' => ['required', 'string', 'max:72', 'regex:/\A[^\x00]{14,72}\z/', Password::min(14), ...($creatingOwner ? ['confirmed'] : [])],
+            'password' => [
+                'bail', 'required', 'string', 'max:72', 'regex:/\A[^\x00]{14,72}\z/',
+                Password::min(14), 'confirmed', 'different:current_password',
+                function (string $attribute, string $value, \Closure $fail): void {
+                    if (strlen($value) > 72) {
+                        $fail('تجاوزت كلمة المرور الحد المسموح به بعد ترميزها.');
+                    }
+                },
+            ],
             'role' => ['required', Rule::in(['owner', 'editor', 'viewer'])],
+            'current_password' => ['bail', 'required', 'string', 'regex:/\A[^\x00]{1,72}\z/', 'current_password'],
+            'identity_confirmed' => ['accepted'],
+        ], [
+            'password.confirmed' => 'كلمتا المرور غير متطابقتين.',
+            'password.different' => 'اختر للحساب الجديد كلمة مرور مختلفة عن كلمة مرورك.',
+            'current_password.current_password' => 'كلمة مرور حسابك الحالي غير صحيحة.',
+            'identity_confirmed.accepted' => 'أكّد أنك تحققت من هوية صاحب البريد الإلكتروني.',
         ]);
-        if ($creatingOwner) {
-            $request->validate([
-                'current_password' => ['required', 'string', 'regex:/\A[^\x00]{1,72}\z/', 'current_password'],
-                'identity_confirmed' => ['accepted'],
-            ]);
-            if (Hash::check($data['password'], $request->user()->password)) {
-                throw ValidationException::withMessages(['password' => 'استخدم كلمة مرور مستقلة للحساب الجديد.']);
-            }
+
+        try {
+            $user = new User;
+            $user->forceFill([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => Hash::make($data['password']),
+                'role' => $data['role'],
+            ])->save();
+        } catch (UniqueConstraintViolationException) {
+            throw ValidationException::withMessages(['email' => 'يوجد حساب مسجّل بهذا البريد الإلكتروني.']);
         }
-        $user = new User;
-        $user->forceFill([...$data, 'password' => Hash::make($data['password'])])->save();
+
+        $request->attributes->set('audit.account', ['target' => $user->id, 'role' => $user->role]);
 
         return $this->saved();
     }
