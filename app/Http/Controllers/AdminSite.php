@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Support\AdminAudit;
+use App\Support\OwnerSiteChecks;
 use App\Support\SafeScan;
 use App\Support\Site;
 use App\Support\SiteUpdates;
@@ -18,9 +19,9 @@ use Inertia\Inertia;
 
 class AdminSite
 {
-    public const Sections = ['overview', 'projects', 'content', 'languages', 'contribute', 'contact', 'media', 'identity', 'seo', 'settings', 'users', 'security', 'sessions', 'audit', 'safescan', 'updates'];
+    public const Sections = ['overview', 'projects', 'content', 'languages', 'contribute', 'contact', 'media', 'identity', 'seo', 'settings', 'users', 'security', 'sessions', 'audit', 'safescan', 'updates', 'seo-audit', 'system-health'];
 
-    public const OwnerSections = ['users', 'security', 'sessions', 'audit', 'safescan', 'updates', 'settings'];
+    public const OwnerSections = ['users', 'security', 'sessions', 'audit', 'safescan', 'updates', 'settings', 'seo-audit', 'system-health'];
 
     public function show(Request $request, string $section = 'overview')
     {
@@ -49,6 +50,8 @@ class AdminSite
             'sessions' => $this->sessions($request),
             'audit' => app(AdminAudit::class)->latest(),
             'safescan' => ['configured' => filled(config('erthi.clamd_socket')), 'result' => $request->session()->get('scan_result')],
+            'seo-audit' => app(OwnerSiteChecks::class)->seo($settings),
+            'system-health' => app(OwnerSiteChecks::class)->runtime($settings),
             'updates' => $this->updateStatus($request),
             'settings' => [
                 'site_url' => Site::origin($settings),
@@ -257,16 +260,26 @@ class AdminSite
     {
         abort_unless($request->user()->role === 'owner', 403);
         if (is_string($request->input('email'))) {
-            $request->merge(['email' => strtolower($request->input('email'))]);
+            $request->merge(['email' => strtolower(trim($request->input('email')))]);
         }
+        $creatingOwner = $request->input('role') === 'owner';
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email:rfc', 'max:254', Rule::unique('users')],
-            'password' => ['required', 'string', 'max:72', 'regex:/\A[^\x00]{14,72}\z/', Password::min(14)],
-            'role' => ['required', Rule::in(['editor', 'viewer'])],
+            'password' => ['required', 'string', 'max:72', 'regex:/\A[^\x00]{14,72}\z/', Password::min(14), ...($creatingOwner ? ['confirmed'] : [])],
+            'role' => ['required', Rule::in(['owner', 'editor', 'viewer'])],
         ]);
+        if ($creatingOwner) {
+            $request->validate([
+                'current_password' => ['required', 'string', 'regex:/\A[^\x00]{1,72}\z/', 'current_password'],
+                'identity_confirmed' => ['accepted'],
+            ]);
+            if (Hash::check($data['password'], $request->user()->password)) {
+                throw ValidationException::withMessages(['password' => 'استخدم كلمة مرور مستقلة للحساب الجديد.']);
+            }
+        }
         $user = new User;
-        $user->forceFill([...$data, 'email' => strtolower($data['email']), 'password' => Hash::make($data['password'])])->save();
+        $user->forceFill([...$data, 'password' => Hash::make($data['password'])])->save();
 
         return $this->saved();
     }

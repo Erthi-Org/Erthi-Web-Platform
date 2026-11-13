@@ -18,9 +18,6 @@ class PublicSite
         abort_unless(in_array($locale, $locales, true), 404);
         app()->setLocale($locale);
         $content = Site::content()[$locale];
-        $title = $content[$page]['title'];
-        $description = $settings['description_'.$locale] ?? $content[$page]['body'];
-        $titleSuffix = $settings['title_'.$locale] ?? ($locale === 'ar' ? 'إرثي' : 'Erthi');
 
         return Inertia::render('Public', [
             'locale' => $locale,
@@ -40,15 +37,7 @@ class PublicSite
                 ? DB::table('projects')->where('published', true)->latest('id')->when($page === 'home', fn ($query) => $query->limit(4))
                     ->get(["title_{$locale} as title", "summary_{$locale} as summary", 'repository', 'icon'])
                 : [],
-            'seo' => [
-                'title' => $title.' | '.$titleSuffix,
-                'description' => str($description)->limit(160)->toString(),
-                'canonical' => Site::url($settings, $locale, $page),
-                'alternates' => array_combine($locales, array_map(fn ($lang) => Site::url($settings, $lang, $page), $locales))
-                    + ['x-default' => Site::url($settings, 'ar', $page)],
-                'image' => Site::origin($settings).'/brand/social.jpg',
-                'index' => Site::indexing($settings),
-            ],
+            'seo' => Site::seo($settings, $locale, $page, $content[$page]),
         ]);
     }
 

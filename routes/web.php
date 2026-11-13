@@ -45,7 +45,7 @@ Route::prefix($admin)->middleware(['auth', 'can:manage-erthi', 'throttle:90,1', 
     Route::post('/submissions/{kind}/{id}', [AdminSite::class, 'review'])->whereIn('kind', ['contact', 'contribute'])->whereNumber('id');
     Route::delete('/submissions/{kind}/{id}', [AdminSite::class, 'deleteSubmission'])->whereIn('kind', ['contact', 'contribute'])->whereNumber('id');
     Route::post('/media', [AdminSite::class, 'upload'])->middleware('throttle:12,1');
-    Route::post('/users', [AdminSite::class, 'user']);
+    Route::post('/users', [AdminSite::class, 'user'])->middleware('throttle:8,1,erthi-create-user');
     Route::post('/users/{id}', [AdminSite::class, 'role'])->whereNumber('id');
 });
 

@@ -1,3 +1,4 @@
+import '../../css/owner/panel.css';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState, type FormEvent } from 'react';
 import OwnerAuthentication, { type OwnerSecurity } from '../Components/OwnerAuthentication';
@@ -20,6 +21,8 @@ const sections = {
     audit: 'سجل التدقيق',
     safescan: 'فحص الملفات',
     updates: 'تحديثات الموقع',
+    'seo-audit': 'تدقيق محركات البحث',
+    'system-health': 'حالة النظام',
 } as const;
 type Section = keyof typeof sections;
 const navigationGroups = [
@@ -27,12 +30,12 @@ const navigationGroups = [
     ['النشر', ['projects', 'content', 'languages', 'media']],
     ['التواصل والصلاحيات', ['contribute', 'contact', 'users']],
     ['الأمان', ['security', 'sessions', 'audit', 'safescan']],
-    ['إعدادات الموقع', ['identity', 'settings', 'seo', 'updates']],
+    ['إعدادات الموقع', ['identity', 'settings', 'seo', 'seo-audit', 'system-health', 'updates']],
 ] as const satisfies readonly (readonly [string, readonly Section[]])[];
 
 type Value = string | boolean | File | null;
 type Values = Record<string, Value>;
-type Input = {name: string; label: string; type?: string; options?: [string, string][]; optional?: boolean};
+type Input = {name: string; showForRole?: string; label: string; type?: string; options?: [string, string][]; optional?: boolean};
 type Project = {id: number; title_ar: string; title_en: string; summary_ar: string; summary_en: string; repository: string; icon: string; published: boolean | number};
 type Message = {id: number; name: string; email: string; topic: string | null; message: string; reviewed_at: string | null; created_at: string};
 type Media = {id: number; name: string};
@@ -40,17 +43,20 @@ type User = {id: number; name: string; email: string; role: string};
 type Page<T> = {data: T[]; prev_page_url: string | null; next_page_url: string | null; current_page: number; last_page: number};
 type SecurityStatus = OwnerSecurity & {secure_cookie: boolean; encrypted_session: boolean; database_sessions: boolean};
 type OwnerSessions = {available: boolean; items: {current: boolean; last_activity: number}[]};
-const ownerSections: readonly Section[] = ['users', 'security', 'sessions', 'audit', 'safescan', 'updates', 'settings'];
-const sectionIcon = (section: Section, size = 24) => icon(`admin-${section === 'settings' ? 'seo' : section}`, size);
+const ownerSections: readonly Section[] = ['users', 'security', 'sessions', 'audit', 'safescan', 'updates', 'settings', 'seo-audit', 'system-health'];
+const toolIcons: Partial<Record<Section, string>> = {settings: 'seo', 'seo-audit': 'seo', 'system-health': 'overview'};
+const sectionIcon = (section: Section, size = 24) => icon(`admin-${toolIcons[section] ?? section}`, size);
 type AuditEvent = {at: string; actor: number; action: string; method: string; status: number};
 type ScanStatus = {configured: boolean; result: 'clean' | 'detected' | 'unavailable' | null};
 type ReleaseCheck = {status: 'available' | 'missing' | 'unavailable'; sequence: number; url?: string};
 type UpdateStatus = {release_check: ReleaseCheck | null; key: string; sequence: number; active_sequence: number; can_rollback: boolean; available: boolean};
 type SiteSettings = {site_url: string; contact_email: string; public_indexing: boolean};
+type SeoAudit = {indexing: boolean; pages: {locale: string; url: string; title: string; description: string; checks: Record<string, boolean>}[]};
+type RuntimeChecks = Record<string, boolean>;
 type FieldGroup = {title: string; icon: Section; fields: Input[]; note?: string};
 type AdminProps = {
     section: Section; settings: Record<string, string>; logo: string | null; role: string; notice?: string;
-    data: Record<string, number> | Record<string, Copy> | Page<Project> | Page<Message> | Page<Media> | Page<User> | UpdateStatus | SecurityStatus | OwnerSessions | AuditEvent[] | ScanStatus | SiteSettings | [];
+    data: Record<string, number> | Record<string, Copy> | Page<Project> | Page<Message> | Page<Media> | Page<User> | UpdateStatus | SecurityStatus | OwnerSessions | AuditEvent[] | ScanStatus | SiteSettings | SeoAudit | RuntimeChecks | [];
 };
 
 const adminBase = () => document.querySelector<HTMLMetaElement>('meta[name="erthi-admin-base"]')?.content || '/admin';
@@ -68,7 +74,8 @@ function Editor({ url, fields = [], groups, initial, clear = false, submitLabel 
         form.post(url, { preserveScroll: true, onSuccess: () => { if (clear) form.reset(); } });
     }
 
-    function renderField({ name, label, type, options, optional }: Input) {
+    function renderField({ name, label, type, options, optional, showForRole }: Input) {
+        if (showForRole && form.data.role !== showForRole) return null;
         const value = form.data[name];
         const error = form.errors[name];
         const text = typeof value === 'string' ? value : '';
@@ -82,7 +89,7 @@ function Editor({ url, fields = [], groups, initial, clear = false, submitLabel 
             </select> : type === 'textarea' ? <textarea rows={4} dir="auto" value={text} required={!optional} onChange={e => form.setData(name, e.target.value)} />
             : type === 'file' ? <input type="file" accept={name === 'bundle' ? '.zip,application/zip' : 'image/png,image/jpeg,image/webp'} required onChange={e => form.setData(name, e.target.files?.[0] ?? null)} />
             : <input type={type ?? 'text'} dir={type === 'email' || type === 'url' ? 'ltr' : 'auto'} value={text} required={!optional}
-                autoComplete={type === 'password' ? ((url === accessHref() || url.startsWith(adminHref('/updates'))) ? 'current-password' : 'new-password') : type === 'email' ? 'email' : undefined}
+                autoComplete={type === 'password' ? ((name === 'current_password' || url === accessHref() || url.startsWith(adminHref('/updates'))) ? 'current-password' : 'new-password') : type === 'email' ? 'email' : undefined}
                 onChange={e => form.setData(name, e.target.value)} />}
         </Field>;
     }
@@ -191,8 +198,20 @@ function Identity({ page, settings, logo }: {page: Page<Media>; settings: Record
 const roles: [string, string][] = [['editor', 'محرّر'], ['viewer', 'موقوف عن الإدارة']];
 function Users({ page }: {page: Page<User>}) {
     return <>
-        <details className="panel"><summary>إنشاء حساب</summary><Editor url={adminHref('/users')} clear initial={{name: '', email: '', password: '', role: 'editor'}}
-            fields={[{name: 'name', label: 'الاسم'}, {name: 'email', label: 'البريد الإلكتروني', type: 'email'}, {name: 'password', label: 'كلمة المرور (14 حرفًا على الأقل)', type: 'password'}, {name: 'role', label: 'الصلاحية', options: roles}]} /></details>
+        <details className="panel"><summary>إنشاء حساب</summary>
+            <Editor url={adminHref('/users')} clear initial={{
+                name: '', email: '', role: 'editor', password: '', password_confirmation: '',
+                current_password: '', identity_confirmed: false,
+            }} fields={[
+                {name: 'name', label: 'الاسم'},
+                {name: 'email', label: 'البريد الإلكتروني', type: 'email'},
+                {name: 'role', label: 'الصلاحية', options: [...roles, ['owner', 'مالك']]},
+                {name: 'password', label: 'كلمة المرور (14 حرفًا على الأقل)', type: 'password'},
+                {name: 'password_confirmation', label: 'تأكيد كلمة مرور الحساب الجديد', type: 'password', showForRole: 'owner'},
+                {name: 'current_password', label: 'كلمة مرورك الحالية', type: 'password', showForRole: 'owner'},
+                {name: 'identity_confirmed', label: 'أؤكد أن البريد يعود إلى شخص موثوق وأوافق على منحه صلاحيات المالك', type: 'checkbox', showForRole: 'owner'},
+            ]} />
+        </details>
         {page.data.map(user => <article className="panel" key={user.id}><h2>{user.name}</h2><p><bdi>{user.email}</bdi></p>
             {user.role === 'owner' ? <p>مالك</p> : <Editor url={adminHref(`/users/${user.id}`)} fields={[{name: 'role', label: 'الصلاحية', options: roles}]} initial={{role: user.role}} />}
         </article>)}
@@ -224,7 +243,63 @@ const sectionDescriptions: Record<Section, string> = {
     audit: 'راجع طلبات التعديل الإدارية المسجّلة على الموقع.',
     safescan: 'افحص ملفًا بمحرك ClamAV المحلي قبل استخدامه.',
     updates: 'تحقّق من إصدارات GitHub وثبّت التحديث الموقّع من لوحة المالك.',
+    'seo-audit': 'راجع بيانات الصفحات وعناوينها الأساسية وإعداد الفهرسة.',
+    'system-health': 'تحقّق من متطلبات التشغيل والتحديث الموقّع.',
 };
+
+const ownerTools = ['seo-audit', 'security', 'audit', 'safescan', 'system-health', 'updates', 'users'] as const;
+
+function OwnerTools() {
+    return <section aria-labelledby="owner-tools-heading">
+        <h2 id="owner-tools-heading">أدوات إدارة الموقع</h2>
+        <div className="owner-tools">
+            {ownerTools.map(key => <Link className="panel owner-tool" key={key} href={sectionHref(key)}>
+                {sectionIcon(key, 30)}
+                <span><strong>{sections[key]}</strong><small>{sectionDescriptions[key]}</small></span>
+            </Link>)}
+        </div>
+    </section>;
+}
+
+const seoChecks: Record<string, string> = {
+    title: 'عنوان موجود',
+    description: 'وصف موجود',
+    unique_title: 'عنوان فريد',
+    unique_description: 'وصف فريد',
+    https: 'رابط أساسي عبر HTTPS',
+};
+const runtimeChecks: Record<string, string> = {
+    php: 'PHP 8.4 أو أحدث',
+    debug: 'وضع تصحيح الأخطاء معطّل',
+    key: 'مفتاح التطبيق مضبوط',
+    https: 'عنوان الموقع يستخدم HTTPS',
+    database: 'برنامج تشغيل قاعدة البيانات متاح',
+    zip: 'امتداد ZIP متاح',
+    sodium: 'امتداد Sodium متاح',
+    storage: 'التخزين الخاص قابل للكتابة',
+};
+
+function CheckRows({ checks, labels }: {checks: Record<string, boolean>; labels: Record<string, string>}) {
+    return <dl>{Object.entries(labels).map(([key, label]) => <div className="admin-security-row" key={key}>
+        <dt>{label}</dt><dd>{checks[key] ? 'مستوفى' : 'يحتاج مراجعة'}</dd>
+    </div>)}</dl>;
+}
+
+function SeoAuditPanel({ audit }: {audit: SeoAudit}) {
+    return <>
+        <section className="panel">
+            <h2>{audit.indexing ? 'الفهرسة مسموحة' : 'الفهرسة معطّلة'}</h2>
+            <p>هذا فحص محلي لبيانات الصفحات ولا يقيس حالة الفهرسة لدى Google.</p>
+            <Link className="text-link" href={sectionHref('settings')}>إعدادات محركات البحث</Link>
+        </section>
+        {audit.pages.map(page => <details className="panel" key={page.url}>
+            <summary><bdi>{page.title}</bdi></summary>
+            <p className="owner-seo-url"><bdi>{page.url}</bdi></p>
+            <p><bdi>{page.description}</bdi></p>
+            <CheckRows checks={page.checks} labels={seoChecks} />
+        </details>)}
+    </>;
+}
 
 function Overview({ counts, owner }: { counts: Record<string, number>; owner: boolean }) {
     const inboxes = ['contribute', 'contact'] as const;
@@ -237,6 +312,7 @@ function Overview({ counts, owner }: { counts: Record<string, number>; owner: bo
                 {sectionIcon(key, 28)}<span>{label}</span><strong>{counts[key]}</strong>
             </Link>)}
         </section>
+        {owner && <OwnerTools />}
         <div className="admin-overview-grid">
             <section className="panel admin-widget">
                 <h2>صندوق المتابعة</h2>
@@ -288,6 +364,8 @@ function Workspace({ section, data, settings, logo, role }: AdminProps) {
         case 'contribute': return <Inbox page={data as Page<Message>} section={section} />;
         case 'media': return <MediaEditor page={data as Page<Media>} />;
         case 'identity': return <Identity page={data as Page<Media>} logo={logo} settings={settings} />;
+        case 'seo-audit': return <SeoAuditPanel audit={data as SeoAudit} />;
+        case 'system-health': return <section className="panel"><CheckRows checks={data as RuntimeChecks} labels={runtimeChecks} /></section>;
         case 'security': {
             const status = data as SecurityStatus;
             const checks = [
@@ -432,7 +510,7 @@ export default function Admin(props: AdminProps) {
     const owner = role === 'owner';
     const title = section === 'overview' ? (owner ? 'مركز إدارة المالك' : 'مركز إدارة إرثي') : sections[section];
 
-    return <div className="admin-layout" dir="rtl">
+    return <div className={owner ? 'admin-layout owner-panel' : 'admin-layout'} dir="rtl">
         <Head title={title + ' | إرثي'} />
         <aside className="admin-nav">
             <div className="admin-nav-top">
